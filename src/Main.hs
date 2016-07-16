@@ -51,42 +51,14 @@ main :: IO ()
 main = processSerialPort
      $ liftIO . print
 
---
--- Cuts a binary string into several bytes
---
-binaryStringToBytes::(Monad m) => Pipe ByteString Word8 m r
-binaryStringToBytes = P.mapFoldable unpack
-
-testit::(Monad m) => PP.Parser ByteString m ([Either PB.DecodingError Word8])
-testit = sequence [PB.decode,PB.decode,PB.decode]
-
-testita::(Monad m) => PP.Parser ByteString m (Either PB.DecodingError [Word8])
-testita = mapM id <$> sequence [PB.decode,PB.decode,PB.decode]
-
-testitb::(Monad m) => PP.Parser ByteString m (Either PB.DecodingError [Word8])
-testitb = sequence <$> sequence [PB.decode,PB.decode,PB.decode]
-
---
--- Decode a stream of binaries to a generic Header, in case of decoding errors
--- just return Nothing.
---
-decodeMessage::(Monad m) => PP.Parser ByteString m (Either PB.DecodingError Header)
-decodeMessage = do
-  msize <- PB.decode
-  mtype <- PB.decode
-  msubtype <- PB.decode
-  msequenceNumber <- PB.decode
-  mdata <- sequence <$> replicateM 3 PB.decode
-  return $ (Header <$> msize <*> mtype <*> msubtype <*> msequenceNumber <*> mdata)
-
---
--- Decode a stream of binaries to a generic Header, in case of decoding errors
--- just return Nothing.
---
+-- |Validate the body size of the message, it must be more than 3 charatcers, otherwise
+-- we have an invalida message
 validateBodySize::Word8->Int
 validateBodySize x | x>3 = fromIntegral x-3
                  | otherwise = 0
 
+-- | Validate that the data section of the message contains bytes. If not it is not
+-- a valid message
 validateData::(Either PB.DecodingError [Word8])->(Either PB.DecodingError [Word8])
 validateData (Right ls) = if null ls then
                   Left $ PB.DecodingError 0 "Empty Message"
@@ -94,7 +66,7 @@ validateData (Right ls) = if null ls then
                   Right ls
 validateData (Left de) = Left de
 
-
+-- | Decode a stream of binaries to a generic Header
 decodeMessage2::(Monad m) => PP.Parser ByteString m (Either () (Either PB.DecodingError Header))
 decodeMessage2 = do
   msize <- PB.decode
@@ -104,6 +76,7 @@ decodeMessage2 = do
   mdata <- sequence <$> replicateM (either (const 0) id (validateBodySize <$> msize)) PB.decode
   return $ Right $ (Header <$> msize <*> mtype <*> msubtype <*> msequenceNumber <*> validateData mdata)
 
+-- |Open up the serial port with the correct settings for communicating with RFXCOM
 openMySerial :: IO Handle
 openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS38400,
                                                                   bitsPerWord = 8,
@@ -111,9 +84,7 @@ openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS
                                                                   parity = NoParity,
                                                                   timeout = 10}
 
---
--- process Serial
---
+-- |Run the pipes
 processSerialPort ::
      (MonadIO m, MonadMask m)
   => ((Either PB.DecodingError Header) -> m ())
