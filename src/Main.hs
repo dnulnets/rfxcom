@@ -52,7 +52,8 @@ main = processSerialPort
      $ liftIO . print
 
 -- |Validate the body size of the message, it must be more than 3 charatcers, otherwise
--- we have an invalida message
+-- we have an invalida message so clamp it down to 0 in that case to signal fault data
+-- block size.
 validateBodySize::Word8->Int
 validateBodySize x | x>3 = fromIntegral x-3
                  | otherwise = 0
