@@ -2,7 +2,7 @@ name:                rfxcom
 version:             0.1.0.0
 synopsis:            Simple project template from stack
 description:         Please see README.md
-homepage:            http://github.com/dnulnets/RFX2MQTT#readme
+homepage:            https://bitbucket.org/dnulnets/rfxcom
 license:             BSD3
 license-file:        LICENSE
 author:              Tomas Stenlund
@@ -12,7 +12,7 @@ category:            Application,Utility
 build-type:          Simple
 cabal-version:       >=1.10
 
-executable RFX2MQTT
+executable rfxcom
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010

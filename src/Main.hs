@@ -24,7 +24,7 @@ import           Control.Monad
 
 import           Pipes
 import qualified Pipes.Binary               as PB (DecodingError (..), decode,
-                                                   encode)
+                                                   encode,decodeGet)
 import qualified Pipes.ByteString           as PBS (fromLazy, hGetSome)
 import qualified Pipes.Parse                as PP
 import qualified Pipes.Prelude              as P (mapFoldable, mapM, mapM_)
@@ -37,46 +37,45 @@ import           System.IO
 -- Generic data Header
 --
 data Header = Header
-  { _size           :: Word8
-  , _type           :: Word8
-  , _subtype        :: Word8
-  , _sequenceNumber :: Word8
-  , _data           :: [Word8]}
+  { _size           :: !Word8
+  , _type           :: !Word8
+  , _subtype        :: !Word8
+  , _sequenceNumber :: !Word8
+  , _data           :: ![Word8]}
   deriving (Show)
 
 --
 -- Main to test the pipe sequence
 --
 main :: IO ()
-main = processSerialPort
-     $ liftIO . print
-
+main = do
+     tmp <- processSerialPort $ liftIO . print
+     return ()
+     
 -- |Validate the body size of the message, it must be more than 3 charatcers, otherwise
--- we have an invalida message so clamp it down to 0 in that case to signal fault data
+-- we have an invalida message so clamp it down to 0 in that case to signal faulty data
 -- block size.
-validateBodySize::Word8->Int
-validateBodySize x | x>3 = fromIntegral x-3
-                 | otherwise = 0
+validateBodySize::Word8->Word8
+validateBodySize x | x>3 = x-3
+                   | otherwise = 0
 
--- | Validate that the data section of the message contains bytes. If not it is not
--- a valid message
-validateData::(Either PB.DecodingError [Word8])->(Either PB.DecodingError [Word8])
-validateData (Right ls) = if null ls then
-                  Left $ PB.DecodingError 0 "Empty Message"
-                else
-                  Right ls
-validateData (Left de) = Left de
+-- |Parses the bytestream into rfxcom messages based on the rfxcom decoder and return with
+-- decoding errors or the rfxcom message.
+msgParser::(Monad m) => PP.Parser ByteString m (Either () (Either PB.DecodingError Header))
+msgParser = do
+  msg <- PB.decodeGet msgDecoder  
+  return $ Right msg
 
--- | Decode a stream of binaries to a generic Header
-decodeMessage2::(Monad m) => PP.Parser ByteString m (Either () (Either PB.DecodingError Header))
-decodeMessage2 = do
-  msize <- PB.decode
-  mtype <- PB.decode
-  msubtype <- PB.decode
-  msequenceNumber <- PB.decode
-  mdata <- sequence <$> replicateM (either (const 0) id (validateBodySize <$> msize)) PB.decode
-  return $ Right $ (Header <$> msize <*> mtype <*> msubtype <*> msequenceNumber <*> validateData mdata)
-
+-- |Describes an rfxcom message decoder.
+msgDecoder::Get Header
+msgDecoder = do
+  msize <- getWord8
+  mtype <- getWord8
+  msubtype <- getWord8
+  msequenceNumber <- getWord8
+  mdata <- replicateM (fromIntegral $ validateBodySize msize) getWord8
+  return $! Header msize mtype msubtype msequenceNumber mdata
+    
 -- |Open up the serial port with the correct settings for communicating with RFXCOM
 openMySerial :: IO Handle
 openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS38400,
@@ -94,13 +93,5 @@ processSerialPort handler =
   runEffect . runSafeP $ do
     serial <- liftIO openMySerial
     forever $ PBS.hGetSome 1 serial
-    -- forever $ PBS.hGetSome 256 serial
-
-    -- >-> P.mapM (lift . liftIO . print)
-    
-    -- Use this to test this more simply, otherwise it would be the serial handle
-    --PBS.fromLazy $ fromStrict $ pack [4,2, 1,64::Word8, 2,3,2,65,2,5,5,1,2,3,5]
-
-    >-> (PP.parseForever decodeMessage2)
-
+    >-> PP.parseForever msgParser
     >-> P.mapM_ (lift . handler)
