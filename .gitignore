@@ -18,4 +18,11 @@ cabal.sandbox.config
 *.eventlog
 .stack-work/
 cabal.project.local
-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
