@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 -- |This application converts rfxcom messages to MQTT messages on a message bus
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06
@@ -45,14 +46,15 @@ msgParser = do
 msgDecoder::Get Message -- ^The decoder containig the message
 msgDecoder = do
     msize <- getWord8
-    if msize > 3 then do
-      mtype <- getWord8
-      msubtype <- getWord8
-      msqnr <- getWord8
-      msg <- msgDecoderMux $ Header msize mtype msubtype msqnr
-      return msg
-    else
-      return CorruptMessage
+    if msize > 3
+      then do
+        mtype <- getWord8
+        msubtype <- getWord8
+        msqnr <- getWord8
+        msg <- msgDecoderMux $ Header msize mtype msubtype msqnr
+        return msg
+      else
+        return CorruptMessage
 
 -- |Handles the conversion from the RFXCom message type value to an actual message type constructor
 msgDecoderMux::Header -- ^The header of the message

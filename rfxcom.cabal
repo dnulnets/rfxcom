@@ -12,6 +12,22 @@ category:            Application,Utility
 build-type:          Simple
 cabal-version:       >=1.10
 
+library
+  hs-source-dirs:      src
+  build-depends:       base >= 4.7 && < 5,
+                       serialport,
+                       bytestring,
+                       pipes,
+                       text,
+                       pipes-bytestring,
+                       pipes-safe,
+                       pipes-binary,
+                       pipes-parse,
+                       binary                 
+  exposed-modules:     RFXCom.Message.Base,
+                       RFXCom.Message.BaseMessage,
+                       RFXCom.Message.Decoder
+
 executable rfxcom
   hs-source-dirs:      src
   other-modules:       RFXCom.Message.Base,

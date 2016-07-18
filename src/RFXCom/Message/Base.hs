@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 -- |This module contains all different RFXCom 'Message' types and constructors.
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06

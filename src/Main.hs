@@ -41,19 +41,20 @@ main = do
      tmp <- processSerialPort $ liftIO . print
      return ()
 
--- |Open up the serial port with the correct settings for communicating with RFXCOM
-openMySerial :: IO Handle
+-- |Open up the serial port with the correct settings for communicating with an
+-- RFXCOM device.
+openMySerial :: IO Handle -- ^The serial port handle
 openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS38400,
                                                                   bitsPerWord = 8,
                                                                   stopb = One,
                                                                   parity = NoParity,
                                                                   timeout = 10}
 
--- |Run the pipes
+-- |Run the pipes.
 processSerialPort ::
      (MonadIO m, MonadMask m)
-  => ((Either PB.DecodingError Message) -> m ())
-  -> m ()
+  => ((Either PB.DecodingError Message) -> m ()) -- ^The message handler function
+  -> m () -- ^The result of the pipe execution session
 processSerialPort handler =
   runEffect . runSafeP $ do
     serial <- liftIO openMySerial
