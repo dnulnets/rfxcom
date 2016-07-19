@@ -26,12 +26,16 @@ library
                        binary                 
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
+                       RFXCom.Message.TemperatureAndHumidity,
+                       RFXCom.Message.Security1,
                        RFXCom.Message.Decoder
 
 executable rfxcom
   hs-source-dirs:      src
   other-modules:       RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
+                       RFXCom.Message.TemperatureAndHumidity,
+                       RFXCom.Message.Security1,
                        RFXCom.Message.Decoder
   main-is:             Main.hs
   default-language:    Haskell2010

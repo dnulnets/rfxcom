@@ -17,7 +17,9 @@ module RFXCom.Message.Base (
 -- Internal Import Section
 --
 import RFXCom.Message.BaseMessage (Header,
-                                   RawMessageBody)
+                                   RawBody)
+import RFXCom.Message.TemperatureAndHumidity (TemperatureAndHumidityBody)
+import RFXCom.Message.Security1 (Security1Body)
 
 -- |This data structure holds all of the possible messages to and from the RFXCom
 -- device. To extend this structure just add a typeconstructor and create or
@@ -38,11 +40,19 @@ import RFXCom.Message.BaseMessage (Header,
 --
 data Message
   -- |This is a corrupted message, i.e. something in the byte stream is wrong. Usually it
-  -- is the length of the message that is wrong.
-  = CorruptMessage
+  -- is the length of the message that is wrong or something in the message is not handled
+  -- or otherwise corrupt. The String contains additional information.
+  = CorruptMessage String
   
   -- |This is an unknown message, i.e. a message that has the correct header but the type
-  -- is unknown. The message contains the raw data bytes.
-  | UnknownMessage Header RawMessageBody
+  -- is unknown or not handled. The information contains the raw binary body.
+  | UnknownMessage Header RawBody
+
+  -- |This is the temperature and humidity sensor reading message.
+  | TemperatureAndHumidity Header TemperatureAndHumidityBody
+
+  -- |This is the security 1 sensor reading message
+  | Security1 Header Security1Body
   
   deriving (Show)
+
