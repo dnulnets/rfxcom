@@ -8,6 +8,7 @@
 --
 module RFXCom.Message.Security1 (
   Security1Body(..),
+  getMessage
   ) where
 
 --
@@ -28,13 +29,6 @@ import           RFXCom.Message.BaseMessage (Header (..), RFXComMessage (..))
 data Security1Body = Security1Body
   { _data :: ![Word8]} -- ^The raw body of the message
   deriving (Show)
-
--- |Clamp the body size of the message, it must be more than 3 bytes which is the header
--- size. If the size is less than 3 we have an invalida message.
-clampBodySize::Word8 -- ^The size of the message (from the headers first byte)
-             ->Word8 -- ^The size of the body of the message (after removing the header size)
-clampBodySize x | x>3 = x-3
-                | otherwise = 0
 
 -- |Instance definition of the temperature and humidity sensor reading message
 instance RFXComMessage Security1Body where

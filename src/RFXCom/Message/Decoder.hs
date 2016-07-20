@@ -53,9 +53,10 @@ msgDecoder = do
         msqnr <- getWord8
         (either (CorruptMessage) id <$>) <$> msgDecoderMux $ Header msize mtype msubtype msqnr
       else
-        return $ CorruptMessage "The message is corrupt, the size byte of the message must be greater than three."
+        return $ CorruptMessage "The message is corrupt, the length of the message must be longer than four."
 
--- |Handles the conversion from the RFXCom message type value to an actual message type constructor
+-- |Handles the conversion from the RFXCom message type value to a 'Message' using the correct type
+-- constructor.
 msgDecoderMux::Header                      -- ^The header of the message
              ->Get (Either String Message) -- ^A deocder that returns with an error string or the message
 msgDecoderMux hdr@(Header _ 0x20 _ _) = (Security1 hdr <$>) <$> getMessage hdr

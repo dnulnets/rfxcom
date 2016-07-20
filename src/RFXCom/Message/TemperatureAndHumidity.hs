@@ -8,7 +8,8 @@
 --
 module RFXCom.Message.TemperatureAndHumidity (
   TemperatureAndHumidityBody(..),
-  HumidityStatus (..)
+  HumidityStatus (..),
+  getMessage
   ) where
 
 --
@@ -74,12 +75,18 @@ rssiLevel sts = fromIntegral (sts .&. 0x0f)
 instance RFXComMessage TemperatureAndHumidityBody where
   
   -- |The message parser for the 'TemperatureAndHumidityBody'.
-  getMessage header = do
+  getMessage header = if _size header == 10 then do
+    
     mid <- fromIntegral <$> getWord16be
     mtemperatureH <- getWord8
     mtemperatureL <- getWord8
     mhumidity <- fromIntegral <$> getWord8
     mhumidityStatus <- humidityStatus <$> getWord8
     msensorStatus <- getWord8
+    
     return $ Right $ TemperatureAndHumidityBody mid (temperature mtemperatureH mtemperatureL) mhumidity mhumidityStatus (batteryLevel msensorStatus) (rssiLevel msensorStatus)
+    
+    else do
+    
+    return $ Left "Wrong size of the temperature and humidity sensor message, it must be ten bytes"
     

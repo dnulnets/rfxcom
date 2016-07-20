@@ -8,8 +8,7 @@
 module RFXCom.Message.BaseMessage (
   Header(..),
   RawBody(..),
-  RFXComMessage(..),
-  validateAndCalculateBodySize
+  RFXComMessage(..)
   ) where
 
 --
@@ -32,7 +31,7 @@ class RFXComMessage a where
   -- |This is the RFX message body parser using the 'Get' monad. It do not parses the header
   -- that it assumes is already done and also passed in as an argument.
   getMessage::Header                -- ^The header of the message
-            ->Get (Either String a) -- ^The binary message parser
+            ->Get (Either String a) -- ^The binary message parser that returns a string error or the message body
 
 -- |The RFXCom message header that is the first sequence of bytes in every message.
 data Header = Header
@@ -45,16 +44,6 @@ data Header = Header
 --
 -- Set of functions that helps in parsing the messages
 --
-
--- |Validate and calculate the body size of the message, i.e. the chunk of data that comes
--- after the Header. The total message must be more than 3 bytes which is the header
--- size, i.e. every message must have at least one byte in the body.
---
--- If the size is less than 3 we have an invalida message.
-validateAndCalculateBodySize::Word8             -- ^The size of the message (from the headers first byte)
-                            ->Either String Int -- ^The size of the body of the message (after removing the header size)
-validateAndCalculateBodySize x | x>3 = Right $ fromIntegral x-3
-                               | otherwise = Left "The length of the message is invalid, it must be longer than three bytes."
 
 --
 -- The base message (raw data message) functionality
@@ -74,7 +63,7 @@ instance RFXComMessage RawBody where
     if size>0 then
       (Right . RawBody . unpack )  <$> (getByteString $ size)
       else
-      return $ Left "Wrong size of the message body, it must be at least one byte"
+      return $ Left "The message is corrupt, the length of the message must be longer than four."
       where
         size = fromIntegral (_size hdr) - 3
 
