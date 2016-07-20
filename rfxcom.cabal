@@ -23,7 +23,7 @@ library
                        pipes-safe,
                        pipes-binary,
                        pipes-parse,
-                       binary                 
+                       binary
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
                        RFXCom.Message.TemperatureAndHumidity,
@@ -49,4 +49,4 @@ executable rfxcom
                        pipes-binary,
                        pipes-parse,
                        binary
-
+                       

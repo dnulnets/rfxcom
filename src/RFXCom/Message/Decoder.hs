@@ -51,13 +51,13 @@ msgDecoder = do
         mtype <- getWord8
         msubtype <- getWord8
         msqnr <- getWord8
-        either ( return . CorruptMessage) id $ msgDecoderMux $ Header msize mtype msubtype msqnr
+        (either (CorruptMessage) id <$>) <$> msgDecoderMux $ Header msize mtype msubtype msqnr
       else
-        return $ CorruptMessage "Size byte of the message is not corrent, it must have a value greater than 3. Byte is ignored."
+        return $ CorruptMessage "The message is corrupt, the size byte of the message must be greater than three."
 
 -- |Handles the conversion from the RFXCom message type value to an actual message type constructor
 msgDecoderMux::Header                      -- ^The header of the message
-             ->Either String (Get Message) -- ^An error string or the decoder containing the message
+             ->Get (Either String Message) -- ^A deocder that returns with an error string or the message
 msgDecoderMux hdr@(Header _ 0x20 _ _) = (Security1 hdr <$>) <$> getMessage hdr
 msgDecoderMux hdr@(Header _ 0x52 _ _) = (TemperatureAndHumidity hdr <$>) <$> getMessage hdr
 msgDecoderMux hdr = (UnknownMessage hdr <$>) <$> getMessage hdr

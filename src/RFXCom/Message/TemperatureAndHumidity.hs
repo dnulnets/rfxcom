@@ -14,11 +14,10 @@ module RFXCom.Message.TemperatureAndHumidity (
 --
 -- Import section
 --
+
 import           Data.Bits
 import           Data.Binary     (Word8)
 import           Data.Binary.Get (Get, getWord8, getWord16be)
-
-import           Control.Monad   (replicateM)
 
 --
 -- Internal Import Section
@@ -44,13 +43,18 @@ data TemperatureAndHumidityBody = TemperatureAndHumidityBody
   ,_rssi::Integer}                 -- ^The signal strength of the sensor reception [0(weak)-15(strong)]
   deriving (Show)
 
-temperature::Word8->Word8->Float
+-- |Calculate the temperature value given by the two 'Word8' values from the message
+-- to an internal representation [-128 to +128] with a 1/10th degree of accuracy.
+temperature::Word8 -- ^Most significant byte of the temperature value. Contains sign bit at the most significant bit.
+           ->Word8 -- ^Least significant byte of the temperature value. 
+           ->Float -- ^The calculated temperature.
 temperature h l = sgn * (hv * 256.0 + lv)/10.0
   where
     hv = fromIntegral (h .&. 0x7f)
     lv = fromIntegral l
     sgn = 1.0 - 2.0 * fromIntegral (h .&. 0x80)
 
+-- |Converts the humidity interpretation from the message to an internal representation.
 humidityStatus::Word8->HumidityStatus
 humidityStatus 0 = Normal
 humidityStatus 1 = Comfort
@@ -58,9 +62,11 @@ humidityStatus 2 = Dry
 humidityStatus 3 = Wet
 humidityStatus _ = Unknown
 
+-- |Converts the battery level value from the message to an internal representation [0-100]%.
 batteryLevel::Word8->Integer
 batteryLevel sts =  10*(1+fromIntegral (shiftR (sts .&. 0xf0) 4))
 
+-- |Converts the strength of the reception value from the message to internal representation.
 rssiLevel::Word8->Integer
 rssiLevel sts = fromIntegral (sts .&. 0x0f)
 
@@ -69,12 +75,11 @@ instance RFXComMessage TemperatureAndHumidityBody where
   
   -- |The message parser for the 'TemperatureAndHumidityBody'.
   getMessage header = do
-    mid <- Right $ fromIntegral <$> getWord16be
-    mtemperatureH <- Right getWord8
-    mtemperatureL <- Right getWord8
-    mhumidity <- Right $ fromIntegral <$> getWord8
-    mhumidityStatus <- Right $ humidityStatus <$> getWord8
-    msensorStatus <- Right getWord8
-    return $! TemperatureAndHumidityBody <$> mid <*> (fromIntegral <$> mtemperatureH) <*> mhumidity <*> mhumidityStatus <*> (fromIntegral <$> msensorStatus) <*> (fromIntegral <$> msensorStatus)
-
-
+    mid <- fromIntegral <$> getWord16be
+    mtemperatureH <- getWord8
+    mtemperatureL <- getWord8
+    mhumidity <- fromIntegral <$> getWord8
+    mhumidityStatus <- humidityStatus <$> getWord8
+    msensorStatus <- getWord8
+    return $ Right $ TemperatureAndHumidityBody mid (temperature mtemperatureH mtemperatureL) mhumidity mhumidityStatus (batteryLevel msensorStatus) (rssiLevel msensorStatus)
+    
