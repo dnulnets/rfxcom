@@ -13,6 +13,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
+  default-language:    Haskell2010
   hs-source-dirs:      src
   build-depends:       base >= 4.7 && < 5,
                        serialport,
@@ -24,18 +25,20 @@ library
                        pipes-binary,
                        pipes-parse,
                        binary,
-                       managed
+                       managed,
+                       time
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
                        RFXCom.Message.TemperatureAndHumidity,
                        RFXCom.Message.Security1,
                        RFXCom.Message.Decoder,
                        RFXCom.System.Log,
-                       RFXCom.System.Log.Impl.FileHandle,
+                       RFXCom.System.Log.FileHandle,
                        RFXCom.System.Concurrent,
                        RFXCom.System.Exception
 
 executable rfxcom
+  default-language:    Haskell2010
   hs-source-dirs:      src
   other-modules:       RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
@@ -43,7 +46,7 @@ executable rfxcom
                        RFXCom.Message.Security1,
                        RFXCom.Message.Decoder,
                        RFXCom.System.Log,
-                       RFXCom.System.Log.Impl.FileHandle,
+                       RFXCom.System.Log.FileHandle,
                        RFXCom.System.Concurrent,
                        RFXCom.System.Exception
   main-is:             Main.hs
@@ -58,6 +61,7 @@ executable rfxcom
                        pipes-binary,
                        pipes-parse,
                        binary,
-                       managed
+                       managed,
+                       time
                        
                        

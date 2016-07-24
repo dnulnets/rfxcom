@@ -13,7 +13,10 @@ module Main  where
 import           System.Hardware.Serialport        (CommSpeed (..),
                                                     SerialPortSettings (..),
                                                     defaultSerialSettings,
-                                                    hOpenSerial)
+                                                    hOpenSerial,
+                                                    StopBits(..),
+                                                    Parity(..))
+import           System.IO
 
 import           Control.Concurrent                (threadDelay)
 import           Control.Exception
@@ -29,10 +32,6 @@ import qualified Pipes.Parse                       as PP
 import qualified Pipes.Prelude                     as P (mapM_)
 import           Pipes.Safe
 
-import           System.Hardware.Serialport
-import           System.IO
-
-import           Data.Text                         (Text, pack)
 
 --
 -- Internal import section
@@ -43,8 +42,7 @@ import           RFXCom.System.Concurrent          (forkChild, waitForChildren)
 import           RFXCom.System.Exception           (ResourceException (..))
 import qualified RFXCom.System.Log                 as Log (Handle (..), debug,
                                                            error, info, warning)
-
-import           RFXCom.System.Log.Impl.FileHandle (Config (..), withHandle)
+import           RFXCom.System.Log.FileHandle (Config (..), withHandle)
 
 --
 -- Main to test the pipe sequence
@@ -52,7 +50,7 @@ import           RFXCom.System.Log.Impl.FileHandle (Config (..), withHandle)
 main :: IO ()
 main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceexception: " ++ s) $ do
   runManaged $ do
-    loggerH <- managed $ withHandle Config
+    loggerH <- managed $ withHandle $ Config "rfxcom"
     liftIO $ Log.info loggerH "Hejsan"
     liftIO $ Log.debug loggerH "Hejsan"
     --liftIO $ throwIO ResourceException
@@ -69,7 +67,6 @@ openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS
                                                                   parity = NoParity,
                                                                   timeout = 10}
 
---terminator :: Consumer (Either PB.DecodingError Message) IO ()
 terminator :: Consumer (Either PB.DecodingError Message) IO ()
 terminator = do
   str <- await
