@@ -23,12 +23,17 @@ library
                        pipes-safe,
                        pipes-binary,
                        pipes-parse,
-                       binary
+                       binary,
+                       managed
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
                        RFXCom.Message.TemperatureAndHumidity,
                        RFXCom.Message.Security1,
-                       RFXCom.Message.Decoder
+                       RFXCom.Message.Decoder,
+                       RFXCom.System.Log,
+                       RFXCom.System.Log.Impl.FileHandle,
+                       RFXCom.System.Concurrent,
+                       RFXCom.System.Exception
 
 executable rfxcom
   hs-source-dirs:      src
@@ -36,7 +41,11 @@ executable rfxcom
                        RFXCom.Message.BaseMessage,
                        RFXCom.Message.TemperatureAndHumidity,
                        RFXCom.Message.Security1,
-                       RFXCom.Message.Decoder
+                       RFXCom.Message.Decoder,
+                       RFXCom.System.Log,
+                       RFXCom.System.Log.Impl.FileHandle,
+                       RFXCom.System.Concurrent,
+                       RFXCom.System.Exception
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5,
@@ -48,5 +57,7 @@ executable rfxcom
                        pipes-safe,
                        pipes-binary,
                        pipes-parse,
-                       binary
+                       binary,
+                       managed
+                       
                        
