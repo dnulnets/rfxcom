@@ -18,7 +18,8 @@ import           Control.Concurrent       (ThreadId, myThreadId)
 import           Control.Concurrent.MVar  (MVar, newEmptyMVar, newMVar, putMVar,
                                            takeMVar)
 
-import           Data.Time.LocalTime      (getZonedTime)
+import           Data.Time.LocalTime      (zonedTimeToUTC, getZonedTime)
+import           Data.Time.Format (formatTime, defaultTimeLocale)
 
 import qualified System.IO                as SIO (Handle, hPutStrLn)
 
@@ -57,8 +58,8 @@ loggerThread m = do
       cmd <- takeMVar m
       case cmd of
         Message tid p t -> do
-          zt <- getZonedTime
-          putStrLn $ (show zt) ++ " " ++ (show tid) ++ " " ++ (show p) ++ ":" ++ (show t)
+          utc <- zonedTimeToUTC <$> getZonedTime
+          putStrLn $ (formatTime defaultTimeLocale "%FT%T.%qZ" utc) ++ "|" ++ (show tid) ++ "|" ++ (show p) ++ "|" ++ (show t)
           loop
         Stop s -> do
           putStrLn "Logger:Stoped"
