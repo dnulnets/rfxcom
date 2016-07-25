@@ -1,29 +1,30 @@
 # README #
 
-This is a haskell based RFXCom to MQTT or/and database bridge.
+This is a haskell based RFXCom to MQTT bridge. It converts to and from the RFXCom Messages to JSON structures and publishes or subscribes on them from the MQTT broker.
 
 ### What is this repository for? ###
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+* This contains the source code for the RFXCom to MQTT Bridge and also known issues and plans for current and future releases of the application.
 
 ### How do I get set up? ###
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
+* Clone the current repository to your computer.
+* Get the stack tool.
+* Set up the stack environment by issuing **stack setup** in the RFXCom directory.
+* Run **stack build**
+* Execute it with #stack exec rfxcom"
 
 ### Contribution guidelines ###
 
-* Writing tests
-* Code review
-* Other guidelines
+Toolchain:
+
+* I use emacs and I have installed **intero** and **magit**
+* I have setup so emacs can use **cabal, hasktags, hlint** and **stylish-haskell** in the search path. For instance in **~/.local/bin.**
+
+* Before checking in run stylish-haskell ( from emacs **M-x haskdell-mode-stylish-buffer**)
+
+* Writing tests is not done yet, but will be added at a later stage.
 
 ### Who do I talk to? ###
 
-* Repo owner or admin
-* Other community or team contact
+* Repo owner or admin, tomas.stenlund@telia.com.
