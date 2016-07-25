@@ -12,18 +12,16 @@ This is a haskell based RFXCom to MQTT bridge. It converts to and from the RFXCo
 * Get the stack tool.
 * Set up the stack environment by issuing **stack setup** in the RFXCom directory.
 * Run **stack build**
-* Execute it with #stack exec rfxcom"
+* Execute it with **stack exec rfxcom**
 
 ### Contribution guidelines ###
 
-Toolchain:
+_Toolchain:_
 
 * I use emacs and I have installed **intero** and **magit**
 * I have setup so emacs can use **cabal, hasktags, hlint** and **stylish-haskell** in the search path. For instance in **~/.local/bin.**
 
-* Before checking in run stylish-haskell ( from emacs **M-x haskdell-mode-stylish-buffer**)
-
-* Writing tests is not done yet, but will be added at a later stage.
+* Before checking in run **stylish-haskell** ( from emacs **M-x haskdell-mode-stylish-buffer**)
 
 ### Who do I talk to? ###
 
