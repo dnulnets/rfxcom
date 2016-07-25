@@ -21,6 +21,8 @@ _Toolchain:_
 * I use emacs and I have installed **intero** and **magit**
 * I have setup so emacs can use **cabal, hasktags, hlint** and **stylish-haskell** in the search path. For instance in **~/.local/bin.**
 
+_What to think consider:_
+
 * Before checking in run **stylish-haskell** ( from emacs **M-x haskdell-mode-stylish-buffer**)
 
 ### Who do I talk to? ###
