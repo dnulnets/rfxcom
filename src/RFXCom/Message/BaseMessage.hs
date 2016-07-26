@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
+{-# OPTIONS_GHC -funbox-strict-fields #-}
 -- |This is the RFXCom Message base file that contains the RFXCom message data structures.
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06

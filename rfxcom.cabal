@@ -26,7 +26,9 @@ library
                        pipes-parse,
                        binary,
                        managed,
-                       time
+                       time,
+                       unix,
+                       directory
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
                        RFXCom.Message.TemperatureAndHumidity,
@@ -62,6 +64,8 @@ executable rfxcom
                        pipes-parse,
                        binary,
                        managed,
-                       time
+                       time,
+                       unix,
+                       directory
                        
                        
