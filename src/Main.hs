@@ -10,38 +10,36 @@ module Main  where
 --
 -- Import section
 --
-import           System.Hardware.Serialport        (CommSpeed (..),
-                                                    SerialPortSettings (..),
-                                                    defaultSerialSettings,
-                                                    hOpenSerial,
-                                                    StopBits(..),
-                                                    Parity(..))
+import           System.Hardware.Serialport   (CommSpeed (..), Parity (..),
+                                               SerialPortSettings (..),
+                                               StopBits (..),
+                                               defaultSerialSettings,
+                                               hOpenSerial)
 import           System.IO
 
-import           Control.Concurrent                (threadDelay)
+import           Control.Concurrent           (threadDelay)
 import           Control.Exception
 import           Control.Monad
-import           Control.Monad.Managed             (Managed, managed,
-                                                    runManaged)
+import           Control.Monad.Managed        (Managed, managed, runManaged)
 
 import           Pipes
-import qualified Pipes.Binary                      as PB (DecodingError (..),
-                                                          decodeGet)
-import qualified Pipes.ByteString                  as PBS (hGetSome)
-import qualified Pipes.Parse                       as PP
-import qualified Pipes.Prelude                     as P (mapM_)
+import qualified Pipes.Binary                 as PB (DecodingError (..),
+                                                     decodeGet)
+import qualified Pipes.ByteString             as PBS (hGetSome)
+import qualified Pipes.Parse                  as PP
+import qualified Pipes.Prelude                as P (mapM_)
 import           Pipes.Safe
 
 
 --
 -- Internal import section
 --
-import           RFXCom.Message.Base               (Message)
-import           RFXCom.Message.Decoder            (msgParser)
-import           RFXCom.System.Concurrent          (forkChild, waitForChildren)
-import           RFXCom.System.Exception           (ResourceException (..))
-import qualified RFXCom.System.Log                 as Log (Handle (..), debug,
-                                                           error, info, warning)
+import           RFXCom.Message.Base          (Message)
+import           RFXCom.Message.Decoder       (msgParser)
+import           RFXCom.System.Concurrent     (forkChild, waitForChildren)
+import           RFXCom.System.Exception      (ResourceException (..))
+import qualified RFXCom.System.Log            as Log (Handle (..), debug, error,
+                                                      info, warning)
 import           RFXCom.System.Log.FileHandle (Config (..), withHandle)
 
 --
@@ -50,9 +48,9 @@ import           RFXCom.System.Log.FileHandle (Config (..), withHandle)
 main :: IO ()
 main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceexception: " ++ s) $ do
   runManaged $ do
-    loggerH <- managed $ withHandle $ Config "rfxcom"
-    liftIO $ Log.info loggerH "Hejsan"
-    liftIO $ Log.debug loggerH "Hejsan"
+    loggerH <- managed $ withHandle $ Config "rfxcom" 1
+    replicateM_ 1000 $ liftIO $ Log.info loggerH "Hejsan"
+    liftIO $ Log.debug loggerH "Waow"
     --liftIO $ throwIO ResourceException
     --liftIO $ threadDelay 100000
     liftIO $ processSerialPort $ liftIO . print

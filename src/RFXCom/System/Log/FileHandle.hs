@@ -8,7 +8,8 @@
 --
 module RFXCom.System.Log.FileHandle (
   withHandle,
-  Config(..)
+  Config(..),
+  defaultConfig
   ) where
 
 --
@@ -25,7 +26,7 @@ import           Data.Time.Format         (defaultTimeLocale, formatTime)
 import           Data.Time.LocalTime      (getZonedTime, zonedTimeToUTC)
 import           Text.Read                (readMaybe)
 
-import           System.Directory
+import           System.Directory         (getDirectoryContents, renameFile)
 import           System.Posix.Files       (fileSize, getFileStatus)
 import           System.Posix.Types       (FileOffset)
 
@@ -41,8 +42,12 @@ import qualified RFXCom.System.Log        as Log (Handle (..), Priority (..))
 
 -- |Configuration for the file handler logger.
 data Config = Config {
-  logName::String -- ^Name of the logfile, will generate <name>.log file
+  logName::String -- ^Name of the logfile, will generate <name>.log and <name>.log.<index> file
+  , maxSize::Int    -- ^The maximum size of the log file in kilobytes before rotation
   } deriving (Show)
+
+-- |The default configuration of the logger.
+defaultConfig = Config "rfxcom" 1024
 
 -- |Message sent to the logger thread, containing either a message or a stop command
 data Message = Message ThreadId Log.Priority String -- ^A log message to the logger thread, containnig the thread id, priority and the text.
@@ -97,25 +102,51 @@ getHighestIndex name = do
     indices ls = catMaybes $ stripPrefix (logFileNameBeforeIndex name) <$> ls
     isLogFile name fname = isPrefixOf (logFileNameBeforeIndex name) fname
 
--- |The logger thread that waits for messages containing log entries or a stop command to
--- stop the thread.
-loggerThread::SIO.Handle
+-- |The logger thread that writes messages to a log file and rotates the log files based on file size.
+-- It waits for messages containing log entries that i writes to #logFileName. When the size of the log
+-- file reaches the maximum value it copies the log file to a new file with the same name but an with an
+-- index added as an extension.
+loggerThread::Config
             ->MVar Message
             ->IO ()
-loggerThread fh m = do
-  putStrLn "Logger:Started"
-  loop
+loggerThread config m = do
+  putStrLn $ "RFXCOM.System.Log.FileHandle: Logger thread started"
+  size <- getFileSize $ logName config ++ ".log"
+  hix <- getHighestIndex $ logName config
+  loggerControlLoop config size hix
   where
-    loop = do
+
+    loggerControlLoop config size ix = do
+      info <- try (SIO.withFile (logFileName $ logName config) SIO.AppendMode (\fh->loggerLogLoop config size fh))::IO (Either SomeException Bool)
+      case info of
+        Left e -> do
+          putStrLn $ "RFXCOM.System.Log.FileHandle: Unable to execute the logger thread due to " ++ show e
+          return ()
+        Right again ->
+          if again
+          then do
+            putStrLn $ "RFXCOM.System.Log.FileHandle: Performing log rotation"
+            try (renameFile (logFileName $ logName config) $ logFileNameBeforeIndex (logName config) ++ show ix)::IO (Either SomeException ())
+            loggerControlLoop config 0 $ ix+1
+          else do
+            putStrLn $ "RFXCOM.System.Log.Filehandle: Logging thread stopped"
+            return ()
+
+    loggerLogLoop config size fh = do
       cmd <- takeMVar m
       case cmd of
         Message tid p t -> do
-          utc <- zonedTimeToUTC <$> getZonedTime
-          SIO.hPutStrLn fh $ (formatTime defaultTimeLocale "%FT%T.%qZ" utc) ++ "|" ++ (show tid) ++ "|" ++ (show p) ++ "|" ++ (show t)
-          loop
+          utc <- (formatTime defaultTimeLocale "%FT%T.%qZ") <$> zonedTimeToUTC <$> getZonedTime
+          str <- return $ utc ++ "|" ++ (show tid) ++ "|" ++ (show p) ++ "|" ++ (show t)
+          SIO.hPutStrLn fh str
+          if size + length str < 1024 * maxSize config
+            then
+            loggerLogLoop config (size+length str) fh
+            else
+            return True
         Stop s -> do
-          putStrLn "Logger:Stoped"
           putMVar s ()
+          return False
 
 -- |Sends a stop message the logger thread and waits for it to have finished.
 stopLoggerThread::MVar Message -> IO()
@@ -131,15 +162,10 @@ withHandle
     -> (Log.Handle -> IO a)   -- ^The IO action
     -> IO a
 withHandle config io = do
-  size <- getFileSize $ logName config ++ ".log"
-  hix <- getHighestIndex $ logName config
-  putStrLn $ "Filesize=" ++ (show size)
-  putStrLn $ "Highets rotation=" ++ (show hix)
-  SIO.withFile (logName config ++ ".log") SIO.AppendMode (\hF -> do
-                                           m <- newEmptyMVar
-                                           tid <- forkChild $ loggerThread hF m
-                                           x <- io $ Log.Handle { Log.log =  logMessage m }
-                                           s <- stopLoggerThread m
-                                           return x
-                                       )
+  m <- newEmptyMVar
+  tid <- forkChild $ loggerThread config m
+  x <- io $ Log.Handle { Log.log =  logMessage m }
+  s <- stopLoggerThread m
+  return x
+
 
