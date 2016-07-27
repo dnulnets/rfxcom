@@ -17,11 +17,13 @@ module RFXCom.System.Log.FileHandle (
 import           Control.Concurrent       (ThreadId, myThreadId)
 import           Control.Concurrent.MVar  (MVar, newEmptyMVar, newMVar, putMVar,
                                            takeMVar)
+import           Control.Exception        (SomeException (..), try)
 
 import           Data.List
 import           Data.Maybe
 import           Data.Time.Format         (defaultTimeLocale, formatTime)
 import           Data.Time.LocalTime      (getZonedTime, zonedTimeToUTC)
+import           Text.Read                (readMaybe)
 
 import           System.Directory
 import           System.Posix.Files       (fileSize, getFileStatus)
@@ -74,18 +76,25 @@ logFileNameWithIndex name ix = logFileNameBeforeIndex name ++ show ix
 -- |Returns with the size in bytes of the file
 getFileSize::FilePath -- ^Name of the file
            ->IO Int   -- ^The size in bytes
-getFileSize path = fromIntegral . fileSize <$> getFileStatus path
+getFileSize path = do
+  size <- try (fromIntegral . fileSize <$> getFileStatus path)::IO (Either SomeException Int)
+  case size of
+    Left ex -> return 0
+    Right n -> return n
 
 -- |Finds out the highest index of all log files. This is to get hold of the next log file
 -- to generate when the current logfile reaches maximum size.
 getHighestIndex::String -- ^Name of the log file
                ->IO Int -- ^Highest index of the log file
 getHighestIndex name = do
-  highestIndex <$> filter (isLogFile name) <$> getDirectoryContents "."
+  ix <- try (highestIndex <$> filter (isLogFile name) <$> getDirectoryContents ".")::IO (Either SomeException Int)
+  case ix of
+    Left ex -> return 0
+    Right n -> return n
   where
-    indices ls = catMaybes $ stripPrefix (logFileNameBeforeIndex name) <$> ls
-    numericIndices ls = read <$> indices ls
     highestIndex ls = maximum $ 0:(numericIndices ls)
+    numericIndices ls = catMaybes $ readMaybe <$> indices ls
+    indices ls = catMaybes $ stripPrefix (logFileNameBeforeIndex name) <$> ls
     isLogFile name fname = isPrefixOf (logFileNameBeforeIndex name) fname
 
 -- |The logger thread that waits for messages containing log entries or a stop command to
@@ -122,10 +131,10 @@ withHandle
     -> (Log.Handle -> IO a)   -- ^The IO action
     -> IO a
 withHandle config io = do
-  size <- catchIOError (getFileSize $ logName config ++ ".log") (\_ -> return 0)
-  files <- catchIOError (getHighestIndex $ logName config) (\_ -> return 0)
+  size <- getFileSize $ logName config ++ ".log"
+  hix <- getHighestIndex $ logName config
   putStrLn $ "Filesize=" ++ (show size)
-  putStrLn $ "Highets rotation=" ++ (show files)
+  putStrLn $ "Highets rotation=" ++ (show hix)
   SIO.withFile (logName config ++ ".log") SIO.AppendMode (\hF -> do
                                            m <- newEmptyMVar
                                            tid <- forkChild $ loggerThread hF m
