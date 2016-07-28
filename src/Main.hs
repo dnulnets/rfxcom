@@ -48,7 +48,7 @@ import           RFXCom.System.Log.FileHandle (Config (..), withHandle)
 main :: IO ()
 main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceexception: " ++ s) $ do
   runManaged $ do
-    loggerH <- managed $ withHandle $ Config "rfxcom" 1
+    loggerH <- managed $ withHandle $ Config "rfxcom" 1024
     replicateM_ 1000 $ liftIO $ Log.info loggerH "Hejsan"
     liftIO $ Log.debug loggerH "Waow"
     --liftIO $ throwIO ResourceException

@@ -37,24 +37,27 @@ newtype Handle = Handle
 -- |Log a debug message.
 debug::Handle -- ^The handle to the logger service
         ->String -- ^The text that is written to the log
-        ->IO ()  -- ^The IO monad, everything happens in this context
+        ->IO ()
 debug  = (`RFXCom.System.Log.log` Debug)
+
 
 -- |Log an informational message
 info::Handle -- ^The handle to the logger service
        ->String -- ^The text that is written to the log
-       ->IO ()  -- ^The IO monad, everything happens in this context
+       ->IO ()
 info    = (`RFXCom.System.Log.log` Info)
+
 
 -- |Log a warning message
 warning::Handle -- ^The handle to the logger service
           ->String -- ^The text that is written to the log
-          ->IO ()  -- ^The IO monad, everything happens in this context
+          ->IO ()
 warning = (`RFXCom.System.Log.log` Warning)
+
 
 -- |Log an error message
 error::Handle -- ^The handle to the logger service
         ->String -- ^The text that is written to the log
-        ->IO ()  -- ^The IO monad, everything happens in this context
+        ->IO ()
 error   = (`RFXCom.System.Log.log` Error)
 
