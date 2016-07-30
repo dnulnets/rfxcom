@@ -37,7 +37,9 @@ library
                        RFXCom.System.Log,
                        RFXCom.System.Log.FileHandle,
                        RFXCom.System.Concurrent,
-                       RFXCom.System.Exception
+                       RFXCom.System.Exception,
+                       RFXCom.Control.RFXComWriter,
+                       RFXCom.Control.RFXComReader
 
 executable rfxcom
   default-language:    Haskell2010
@@ -50,7 +52,10 @@ executable rfxcom
                        RFXCom.System.Log,
                        RFXCom.System.Log.FileHandle,
                        RFXCom.System.Concurrent,
-                       RFXCom.System.Exception
+                       RFXCom.System.Exception,
+                       RFXCom.Control.RFXComWriter,
+                       RFXCom.Control.RFXComReader
+
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5,

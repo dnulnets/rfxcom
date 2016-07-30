@@ -31,8 +31,7 @@ data Priority
     deriving (Eq, Ord, Show)
 
 -- |The handle to the logger services.
-newtype Handle = Handle
-    { log :: Priority -> String -> IO ()}
+newtype Handle = Handle { log :: Priority -> String -> IO ()}
 
 -- |Log a debug message.
 debug::Handle -- ^The handle to the logger service
