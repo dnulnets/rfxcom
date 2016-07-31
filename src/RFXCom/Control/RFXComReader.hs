@@ -21,6 +21,7 @@ import           System.Hardware.Serialport (CommSpeed (..), Parity (..),
                                              defaultSerialSettings, hOpenSerial)
 import qualified System.IO                  as SIO
 
+import           Control.Concurrent (killThread)
 import           Control.Concurrent.Chan    (Chan, newChan, readChan, writeChan)
 import           Control.Concurrent.MVar    (MVar, newEmptyMVar, newMVar,
                                              putMVar, takeMVar)
@@ -75,7 +76,8 @@ data IHandle = IHandle {
 withHandle::Config->SIO.Handle->Log.Handle->(Handle->IO a)->IO a
 withHandle config serialH loggerH io = do
   tid <- forkChild $ readerThread $ IHandle loggerH serialH
-  x <- io $ Handle { }
+  x <- io $ Handle
+  killThread tid
   return x
 
 
@@ -88,14 +90,12 @@ withHandle config serialH loggerH io = do
 -- some handler.
 readerThread::IHandle->IO ()
 readerThread ih = do
-  putStrLn "RFXCom.Control.RFXCom: Reader thread is running"
+  Log.info (loggerH ih) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
   processSerialPort ih (return)
-  putStrLn "RFXCom.Control.RFXCom: Reader thread has stopped running"
 
 
 terminator :: (MonadIO m, MonadMask m) => Consumer (Either PB.DecodingError Message) (SafeT m) ()
 terminator = do
-  liftIO $ putStrLn "Terminator!"
   str <- await
   liftIO $ putStrLn $ show str
   terminator

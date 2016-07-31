@@ -69,27 +69,41 @@ openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS
                                                                   parity = NoParity,
                                                                   timeout = 10}
 
+withHandle::(Handle->IO a)->IO a
+withHandle = Control.Exception.bracket openMySerial hClose
+
 --
 -- Main to test the pipe sequence
 --
 main :: IO ()
 main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceexception: " ++ s) $ do
 
-  serialH <- openMySerial
+  putStrLn "RFXCom Version 1.0 - RFXCom to MQTT bridge"
 
   runManaged $ do
 
+    serialH  <- managed $ Main.withHandle
     loggerH  <- managed $ LogI.withHandle LogI.defaultConfig
     rfxWH    <- managed $ RFXComW.withHandle RFXComW.defaultConfig serialH loggerH
-    rfxWR    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH
+    rfxMH    <- managed $ RFXComM.withhandle RFXComM.defaultConfig loggerH rfxWH
+    rfxWR    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH rfxMH
 
-    liftIO koko
+    liftIO $ quit loggerH
 
-  hClose serialH
   waitForChildren
 
-koko = do
-   foo <- putStrLn "RFXCom>"
-   name <- getLine
-   koko
-
+-- |Returns when the userpresses 'q'
+quit::Log.Handle -- ^The logger
+    ->IO ()
+quit h = do
+  hSetBuffering stdin NoBuffering
+  loop
+  where
+    loop = do
+      putStrLn "Press 'q' to quit"
+      c <- getChar
+      if (c /= 'q')
+        then do
+        putStrLn ""
+        loop
+        else return ()

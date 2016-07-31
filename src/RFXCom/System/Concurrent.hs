@@ -16,7 +16,8 @@ module RFXCom.System.Concurrent (
 --
 -- External Import section
 --
-import           Control.Concurrent      (ThreadId, forkFinally)
+import           Control.Concurrent      (ThreadId, forkFinally, killThread,
+                                          myThreadId)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar,
                                           takeMVar)
 
@@ -29,7 +30,7 @@ import           System.IO.Unsafe        (unsafePerformIO)
 
 -- |Holds a list of all threads in this application. This list is not made public outside
 -- this module to ensure no one is tampering with it.
-threadChildren::MVar [MVar ()]
+threadChildren::MVar [(ThreadId, MVar ())]
 {-# NOINLINE threadChildren #-}
 threadChildren = unsafePerformIO (newMVar [])
 
@@ -38,19 +39,20 @@ threadChildren = unsafePerformIO (newMVar [])
 waitForChildren::IO ()
 waitForChildren = do
   cs <- takeMVar threadChildren
-  putStrLn $ "RFXCom.System.Concurrent: Waiting for " ++ show (length cs) ++ " threads to finish"
+  putStrLn $ "RFXCom.System.Concurrent.waitForChildren: Waiting for " ++ show (length cs) ++ " threads to finish"
   putMVar threadChildren cs
   loop
   where
 
-    -- Wait for each thread in the array to finish by signalling its MVar that it has finished.
+    -- Wait for each thread in the array to finish by waiting for its MVar that it has finished.
     loop = do
       cs <- takeMVar threadChildren
       case cs of
         []   -> return ()
         m:ms -> do
+          putStrLn $ "RFXCom.System.Concurrent: Waiting for " ++ show (fst m)
           putMVar threadChildren ms
-          takeMVar m
+          takeMVar $ snd m
           loop
 
 -- |Forks a thread and add it to the global list of threads and make sure it
@@ -60,5 +62,11 @@ forkChild::IO ()       -- ^The IO action to be executed
 forkChild io = do
   mvar <- newEmptyMVar
   childs <- takeMVar threadChildren
-  putMVar threadChildren (mvar:childs)
-  forkFinally io (\_ -> putMVar mvar ())
+  tid <- forkFinally io (\e -> do
+                            putMVar mvar ()
+                            tid <- myThreadId
+                            putStrLn $ "RFXCom.System.Concurrent.forkChild: Cleaning up for " ++ show tid ++ " Reason=(" ++ show e ++ ")"
+                        )
+  putMVar threadChildren ((tid,mvar):childs)
+  putStrLn $ "RFXCom.System.Concurrent.forkChild: " ++ show tid ++ " forked"
+  return tid

@@ -119,7 +119,6 @@ loggerThread::Config
             ->Chan Message
             ->IO ()
 loggerThread config chan = do
-  putStrLn $ "RFXCOM.System.Log.FileHandle: Logger thread started"
   size <- getFileSize $ logName config ++ ".log"
   hix <- getHighestIndex $ logName config
   loggerControlLoop size hix
@@ -141,7 +140,6 @@ loggerThread config chan = do
             try (renameFile (logFileName $ logName config) $ logFileNameBeforeIndex (logName config) ++ show ix)::IO (Either SomeException ())
             loggerControlLoop 0 (ix+1)
           else do
-            putStrLn $ "RFXCOM.System.Log.Filehandle: Logging thread stopped"
             return ()
             
     -- This log loop reads the  channel and calculates the file size of the log file so we know when to return from this loop
