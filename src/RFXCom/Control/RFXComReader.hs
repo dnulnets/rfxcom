@@ -51,6 +51,7 @@ import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
 import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
                                                     info, warning)
+import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle(..))
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -68,14 +69,15 @@ data Handle = Handle
 data IHandle = IHandle {
   loggerH::Log.Handle        -- ^The handle to the logger service
   , serialH::SIO.Handle      -- ^The handle to the serial port
+  , masterH::RFXComM.Handle  -- ^The handle to the master process
   }
 
 
 -- |Performs an IO action with the RFXCom reader process. Note that for each withHandle
 -- a new RFXCom reader thread will be started.
-withHandle::Config->SIO.Handle->Log.Handle->(Handle->IO a)->IO a
-withHandle config serialH loggerH io = do
-  tid <- forkChild $ readerThread $ IHandle loggerH serialH
+withHandle::Config->SIO.Handle->Log.Handle->RFXComM.Handle->(Handle->IO a)->IO a
+withHandle config serialH loggerH masterH io = do
+  tid <- forkChild $ readerThread $ IHandle loggerH serialH masterH
   x <- io $ Handle
   killThread tid
   return x
