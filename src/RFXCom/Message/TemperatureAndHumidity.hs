@@ -19,7 +19,7 @@ module RFXCom.Message.TemperatureAndHumidity (
 
 import           Data.Bits
 import           Data.Binary     (Word8)
-import           Data.Binary.Get (Get, getWord8, getWord16be)
+import           Data.Binary.Get (getWord8, getWord16be)
 
 --
 -- Internal Import Section
@@ -90,4 +90,6 @@ instance RFXComMessage TemperatureAndHumidityBody where
     else do
     
     return $ Left "Wrong size of the temperature and humidity sensor message, it must be ten bytes"
-    
+
+  -- |This message cannot be sent
+  putMessage = undefined

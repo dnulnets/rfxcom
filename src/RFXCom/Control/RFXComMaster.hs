@@ -93,4 +93,12 @@ stopMasterThread mvar = do
 -- |The writer threads that controls messages to and from the RFXCom device.
 masterThread::IHandle->IO ()
 masterThread ih = do
-  Log.info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Writer thread is up and running"  
+  Log.info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Writer thread is up and running"
+  loop
+  where
+    loop = do 
+      cmd <- takeMVar $ mvar ih
+      case cmd of
+        Stop s -> do
+          putMVar s ()
+          return ()

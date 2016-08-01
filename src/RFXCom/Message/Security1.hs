@@ -16,7 +16,7 @@ module RFXCom.Message.Security1 (
 -- Import section
 --
 import           Data.Binary                (Word8)
-import           Data.Binary.Get            (Get, getByteString, getWord8)
+import           Data.Binary.Get            (getByteString, getWord8)
 import           Data.ByteString            (unpack)
 
 import           Control.Monad              (replicateM)
@@ -42,3 +42,6 @@ instance RFXComMessage Security1Body where
       return $ Left "Wrong size of the message body, it must be at least one byte"
       where
         size = fromIntegral (_size hdr) - 3
+
+  -- |This message cannot be sent
+  putMessage = undefined

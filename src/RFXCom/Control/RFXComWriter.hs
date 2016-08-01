@@ -39,11 +39,14 @@ import           Pipes.Safe
 
 import           Data.ByteString            (ByteString)
 import           Data.Word                  (Word8)
+import Data.Binary.Put (runPut)
+import qualified Data.ByteString.Lazy as BL
 
 --
 -- Internal import section
 --
 import           RFXCom.Message.Base        (Message)
+import           RFXCom.Message.BaseMessage (putMessage)
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
@@ -59,13 +62,13 @@ defaultConfig = Config
 
 
 -- |The messages to the writer thread
-data Message = Message ByteString
+data Message = Message RFXCom.Message.Base.Message
              | Stop (MVar ())
 
 
 -- |The service handle to the communcation processes.
 newtype Handle = Handle {
-  send::ByteString->IO () -- ^The send function that sends a bytestring to theRFXCom device
+  send::RFXCom.Message.Base.Message->IO () -- ^The send function that sends a bytestring to theRFXCom device
   }
 
 
@@ -107,7 +110,6 @@ writerThread ih = do
   Log.info (loggerH ih) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"  
   processSerialPortWriter ih
 
-
 -- |Waits for a message to arrive on the communcation channel and then injects it into
 -- the pipe stream down towards the RFXCom device.
 dataProducer::(MonadIO k, MonadMask k)=>MVar RFXCom.Control.RFXComWriter.Message -> Producer ByteString (SafeT k) ()
@@ -115,7 +117,7 @@ dataProducer m = do
   cmd <- liftIO $ takeMVar m
   case cmd of
     Message bs -> do
-      yield bs
+--      yield $ runPut $ putMessage 1 bs
       dataProducer m
     Stop s -> do
       liftIO $ putMVar s ()

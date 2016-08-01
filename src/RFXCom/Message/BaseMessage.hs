@@ -16,8 +16,8 @@ module RFXCom.Message.BaseMessage (
 -- Import section
 --
 import           Data.Binary     (Word8)
-import           Data.Binary.Get (Get, getByteString, getWord8)
-
+import           Data.Binary.Get (Get, getByteString)
+import           Data.Binary.Put (Put)
 import           Data.ByteString (unpack)
 
 import           Control.Monad   (replicateM)
@@ -30,9 +30,15 @@ import           Control.Monad   (replicateM)
 class RFXComMessage a where
 
   -- |This is the RFX message body parser using the 'Get' monad. It do not parses the header
-  -- that it assumes is already done and also passed in as an argument.
-  getMessage::Header                -- ^The header of the message
+  -- because we need to know what kind of message this is before we can parse it.
+  getMessage::Header                -- ^The header of the message, already parsed
             ->Get (Either String a) -- ^The binary message parser that returns a string error or the message body
+
+  -- |This is the RFX Message body producer using the 'Put' monad. It converts the message
+  -- to the appropriate byte message
+  putMessage::Word8 -- ^The sequence number of the message
+            ->a     -- ^The message
+            ->Put   -- ^The binary sequence of the message, including the header
 
 -- |The RFXCom message header that is the first sequence of bytes in every message.
 data Header = Header
@@ -68,3 +74,5 @@ instance RFXComMessage RawBody where
       where
         size = fromIntegral (_size hdr) - 3
 
+  -- |We cannot send raw data bodies
+  putMessage = undefined
