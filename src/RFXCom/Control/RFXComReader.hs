@@ -75,7 +75,12 @@ data IHandle = IHandle {
 
 -- |Performs an IO action with the RFXCom reader process. Note that for each withHandle
 -- a new RFXCom reader thread will be started.
-withHandle::Config->SIO.Handle->Log.Handle->RFXComM.Handle->(Handle->IO a)->IO a
+withHandle::Config          -- ^The configuration of the Reader thread
+          ->SIO.Handle      -- ^The serial port handle
+          ->Log.Handle      -- ^The Logger service handle
+          ->RFXComM.Handle  -- ^The Master service handle
+          ->(Handle->IO a)  -- ^The IO action
+          ->IO a
 withHandle config serialH loggerH masterH io = do
   tid <- forkChild $ readerThread $ IHandle loggerH serialH masterH
   x <- io $ Handle

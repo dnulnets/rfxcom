@@ -19,6 +19,7 @@ import qualified System.IO                  as SIO
 import           Control.Concurrent.Chan    (Chan, newChan, readChan, writeChan)
 import           Control.Concurrent.MVar    (MVar, newEmptyMVar, newMVar,
                                              putMVar, takeMVar)
+
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Managed      (Managed, managed, runManaged)
@@ -56,12 +57,14 @@ defaultConfig = Config
 
 
 -- |The messages to the master thread
-data Message = Stop (MVar ())
+data Message = Timeout          -- ^The timeout message, acts as a heartbeat
+             | Stop (MVar ())   -- ^Shuts down the mater threads
 
 
 -- |The service handle to the communcation processes.
-data Handle = Handle
-
+data Handle = Handle {
+  send::RFXCom.Control.RFXComMaster.Message->IO () -- ^The sender function of commands to the thread
+  }
 
 -- |The internal service handle to the communcation processes.
 data IHandle = IHandle {
@@ -70,35 +73,73 @@ data IHandle = IHandle {
   , mvar::MVar RFXCom.Control.RFXComMaster.Message}   -- ^The communcation mvar
 
 
+-- |The state machines states
+data State = ResetTheDevice
+             
+             
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
 -- a new RFXCom writer communication thread will be started.
-withHandle::Config->Log.Handle->RFXComW.Handle->(Handle->IO a)->IO a
+withHandle::Config          -- ^The configuration of the master threads
+          ->Log.Handle      -- ^The handle to the Logger service
+          ->RFXComW.Handle  -- ^The handle to the RFXCom Writer service
+          ->(Handle->IO a)  -- ^The IO action to perform
+          ->IO a
 withHandle config loggerH writerH io = do
   ih <- IHandle loggerH writerH <$> newEmptyMVar
   tid <- forkChild $ masterThread ih
-  x <- io $ Handle
-  s <- stopMasterThread $ mvar ih
+  x <- io $ Handle { send = sendToMasterThread ih}
+  s <- stopMasterThread ih
   return x
 
 
 --
 -- The serial port writer functions
 --
-stopMasterThread::MVar RFXCom.Control.RFXComMaster.Message -> IO ()
-stopMasterThread mvar = do
+
+-- |Sends a message to the master thread.
+sendToMasterThread::IHandle                             -- ^The internal handle to the master thread
+                  ->RFXCom.Control.RFXComMaster.Message -- ^Tĥe message to send
+                  ->IO ()
+sendToMasterThread ih msg = do
+  putMVar (mvar ih) msg
+
+-- |Stops the master thread by sending a Stop message. This function do not return until the thread
+-- has acknowledged the Stop message.
+stopMasterThread::IHandle -- ^The internal handle to the master thread
+                -> IO ()
+stopMasterThread ih = do
   s<-newEmptyMVar
-  putMVar mvar $ Stop s
+  sendToMasterThread ih $ Stop s
   takeMVar s
+
+-- |Sends a timeout to the master thread.
+timeoutMasterThread::IHandle
+                   -> IO ()
+timeoutMasterThread ih = sendToMasterThread ih Timeout                   
+
+resetTheDevice::IHandle->RFXCom.Control.RFXComMaster.Message->IO State
+resetTheDevice ih msg = do
+  return ResetTheDevice
   
 -- |The writer threads that controls messages to and from the RFXCom device.
-masterThread::IHandle->IO ()
+masterThread::IHandle -- ^The internal handle to the master threads
+            ->IO ()
 masterThread ih = do
-  Log.info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Writer thread is up and running"
-  loop
+  Log.info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
+  loop ResetTheDevice
   where
-    loop = do 
+    loop state = do 
       cmd <- takeMVar $ mvar ih
       case cmd of
         Stop s -> do
           putMVar s ()
           return ()
+        _ -> do
+          case state of
+            ResetTheDevice -> do
+              x <- resetTheDevice ih cmd
+              loop x
+
+
+
+        

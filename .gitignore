@@ -26,3 +26,4 @@ cabal.project.local
 auto-save-list
 tramp
 .\#*
+*.log
