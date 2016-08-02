@@ -46,16 +46,16 @@ data Message
 
   -- |This is an unknown message, i.e. a message that has the correct header but the type
   -- is unknown or not handled. The information contains the raw binary body.
-  | UnknownMessage Header RawBody
+  | UnknownMessage RawBody
 
   -- |This is the temperature and humidity sensor reading message.
-  | TemperatureAndHumidity Header TemperatureAndHumidityBody
+  | TemperatureAndHumidity TemperatureAndHumidityBody
 
   -- |This is the security 1 sensor reading message
-  | Security1 Header Security1Body
+  | Security1 Security1Body
 
   -- |This is the interface control message
-  | InterfaceControl Header InterfaceControlBody
+  | InterfaceControl InterfaceControlBody
 
   deriving (Show)
 

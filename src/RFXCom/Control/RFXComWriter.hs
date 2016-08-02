@@ -37,21 +37,22 @@ import qualified Pipes.Parse                as PP
 import qualified Pipes.Prelude              as P (mapM_, repeatM, mapM)
 import           Pipes.Safe
 
-import           Data.ByteString            (ByteString)
+import           Data.ByteString            (ByteString,concat)
 import           Data.Word                  (Word8)
 import Data.Binary.Put (runPut)
 import qualified Data.ByteString.Lazy as BL
-
+import Data.Binary.Put (Put, putWord8)
 --
 -- Internal import section
 --
 import           RFXCom.Message.Base        (Message)
-import           RFXCom.Message.BaseMessage (putMessage)
+import           RFXCom.Message.BaseMessage (RFXComMessage(..))
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
 import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
                                                     info, warning)
+import RFXCom.Message.Encoder (msgEncoder)
 
 -- |The configuration of the RFXCom writer process settings
 data Config = Config
@@ -62,21 +63,18 @@ defaultConfig = Config
 
 
 -- |The messages to the writer thread
-data Message = Message RFXCom.Message.Base.Message
-             | Stop (MVar ())
-
+data Message = Message RFXCom.Message.Base.Message | Stop (MVar ())
 
 -- |The service handle to the communcation processes.
 newtype Handle = Handle {
   send::RFXCom.Message.Base.Message->IO () -- ^The send function that sends a bytestring to theRFXCom device
   }
 
-
 -- |The internal service handle to the communcation processes.
 data IHandle = IHandle {
   loggerH::Log.Handle        -- ^The handle to the logger service
   , serialH::SIO.Handle      -- ^The handle to the serial port
-  , mvar::MVar RFXCom.Control.RFXComWriter.Message}   -- ^The communcation mvar
+  , mvar::MVar (RFXCom.Control.RFXComWriter.Message)}   -- ^The communcation mvar
 
 
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
@@ -97,7 +95,7 @@ withHandle config serialH loggerH io = do
 -- The serial port writer functions
 --
 
-stopWriterThread::MVar RFXCom.Control.RFXComWriter.Message -> IO ()
+stopWriterThread::MVar (RFXCom.Control.RFXComWriter.Message)-> IO ()
 stopWriterThread mvar = do
   s<-newEmptyMVar
   putMVar mvar $ Stop s
@@ -112,12 +110,12 @@ writerThread ih = do
 
 -- |Waits for a message to arrive on the communcation channel and then injects it into
 -- the pipe stream down towards the RFXCom device.
-dataProducer::(MonadIO k, MonadMask k)=>MVar RFXCom.Control.RFXComWriter.Message -> Producer ByteString (SafeT k) ()
+dataProducer::(MonadIO k, MonadMask k)=>MVar (RFXCom.Control.RFXComWriter.Message)-> Producer ByteString (SafeT k) ()
 dataProducer m = do
   cmd <- liftIO $ takeMVar m
   case cmd of
     Message bs -> do
---      yield $ runPut $ putMessage 1 bs
+      yield $ msgEncoder 1 bs
       dataProducer m
     Stop s -> do
       liftIO $ putMVar s ()
