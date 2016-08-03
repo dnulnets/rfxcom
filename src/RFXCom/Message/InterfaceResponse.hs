@@ -43,15 +43,15 @@ instance H.RFXComMessage InterfaceResponseBody where
   -- |The message parser for the 'InterfaceResponseBody' structure
   getMessage header =
     if ((H._size header == 13) && (H._subtype header /= 7)) ||
-       ((H._size header == 14) && (H._subtype header == 7)) then do
+       ((H._size header == 20) && (H._subtype header == 7)) then do
       
       cmnd <- getWord8
-      arr <- unpack <$> (getByteString $ fromIntegral (H._size header) - 5)
+      arr <- unpack <$> (getByteString $ fromIntegral (H._size header) - 4)
       return $ Right $ InterfaceResponseBody (H._subtype header) cmnd arr
     
     else do
     
-      return $ Left "Wrong size of the interface response message, it must be ten or fourteen bytes depending on subtype"
+      return $ Left "Wrong size of the interface response message, it must be thirteen or twenty bytes depending on subtype"
 
   -- |This message cannot be sent
   putMessage = undefined

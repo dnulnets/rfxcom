@@ -92,7 +92,9 @@ withHandle config serialH loggerH masterH io = do
 -- The serial port reader functions
 --
 
-kkk ih msg = (RFXComM.send $ masterH ih) $ RFXComM.Message msg
+kkk ih msg = do
+  Log.info (loggerH ih) $ "RFXCom.Control.RFXComReader.readThread: Read " ++ show msg
+  (RFXComM.send $ masterH ih) $ RFXComM.Message msg
 
 koko::IHandle->Either PB.DecodingError Message->IO ()
 koko ih msg = either (return . const ()) (kkk ih) msg 

@@ -122,14 +122,14 @@ dataProducer ih seq = do
   case cmd of
     Message msg@(InterfaceControl InterfaceControlBody {_cmnd=Reset}) -> do
       liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
-      bss <- return $ msgEncoder 0 msg
-      liftIO $ putStrLn $ "Sending : " ++ (show (unpack bss))
-      yield $ bss
+      bs <- return $ msgEncoder 0 msg
+      liftIO $ Log.info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
+      yield $ bs
       dataProducer ih 1
     Message msg -> do
       liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
       bs <- return $ msgEncoder seq msg
-      liftIO $ putStrLn $ "Sending : " ++ (show (unpack bs))
+      liftIO $ Log.info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
       yield $ bs
       dataProducer ih (seq+1)
     Flush -> do
