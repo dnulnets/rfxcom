@@ -92,14 +92,17 @@ withHandle config serialH loggerH masterH io = do
 -- The serial port reader functions
 --
 
-koko ih msg = (RFXComM.send $ masterH ih) $ RFXComM.Message msg
+kkk ih msg = (RFXComM.send $ masterH ih) $ RFXComM.Message msg
+
+koko::IHandle->Either PB.DecodingError Message->IO ()
+koko ih msg = either (return . const ()) (kkk ih) msg 
 
 -- |The reader thread that reads all messages from the RFXCom device and sends them away to
 -- some handler.
 readerThread::IHandle->IO ()
 readerThread ih = do
   Log.info (loggerH ih) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
-  processSerialPort ih (return)
+  processSerialPort ih (koko ih)
 
 
 terminator :: (MonadIO m, MonadMask m) => Consumer (Either PB.DecodingError Message) (SafeT m) ()
@@ -119,7 +122,7 @@ take n = do
 -- |Run the pipe from RFXCom to us
 processSerialPort ::
      (MonadIO m, MonadMask m)
-  => IHandle->((Either PB.DecodingError Message) -> m (Either PB.DecodingError Message)) -- ^The message handler function
+  => IHandle->((Either PB.DecodingError Message) -> m ()) -- ^The message handler function
   -> m () -- ^The result of the pipe execution session
 processSerialPort ih handler =
   runEffect . runSafeP $ do
@@ -127,5 +130,5 @@ processSerialPort ih handler =
     forever $ PBS.hGetSome 1 $ serialH ih
     >-> PP.parseForever msgParser
     >-> RFXCom.Control.RFXComReader.take 10
-    >-> P.mapM (lift . handler)
-    >-> terminator
+    >-> P.mapM_ (lift . handler)
+--    >-> terminator

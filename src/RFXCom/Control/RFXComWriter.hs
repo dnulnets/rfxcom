@@ -38,7 +38,7 @@ import qualified Pipes.Parse                as PP
 import qualified Pipes.Prelude              as P (mapM_, repeatM, mapM)
 import           Pipes.Safe
 
-import           Data.ByteString            (ByteString,concat)
+import           Data.ByteString            (ByteString,concat,unpack)
 import           Data.Word                  (Word8)
 import Data.Binary.Put (runPut)
 import qualified Data.ByteString.Lazy as BL
@@ -46,8 +46,9 @@ import Data.Binary.Put (Put, putWord8)
 --
 -- Internal import section
 --
-import           RFXCom.Message.Base        (Message)
+import           RFXCom.Message.Base        (Message(..))
 import           RFXCom.Message.BaseMessage (RFXComMessage(..))
+import           RFXCom.Message.InterfaceControl (InterfaceControlBody(..), SubCommand(..))
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
@@ -114,18 +115,27 @@ writerThread ih = do
 -- |Waits for a message to arrive on the communcation channel and then injects it into
 -- the pipe stream down towards the RFXCom device.
 dataProducer::(MonadIO k, MonadMask k)=>IHandle
-            -> Producer ByteString (SafeT k) ()
-dataProducer ih = do
+            ->Word8
+            ->Producer ByteString (SafeT k) ()
+dataProducer ih seq = do
   cmd <- liftIO $ takeMVar $ mvar ih
   case cmd of
-    Message bs -> do
-      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show bs
-      yield $ msgEncoder 1 bs
-      dataProducer ih
+    Message msg@(InterfaceControl InterfaceControlBody {_cmnd=Reset}) -> do
+      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      bss <- return $ msgEncoder 0 msg
+      liftIO $ putStrLn $ "Sending : " ++ (show (unpack bss))
+      yield $ bss
+      dataProducer ih 1
+    Message msg -> do
+      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      bs <- return $ msgEncoder seq msg
+      liftIO $ putStrLn $ "Sending : " ++ (show (unpack bs))
+      yield $ bs
+      dataProducer ih (seq+1)
     Flush -> do
       liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
       liftIO $ SIO.hFlush $ serialH ih
-      dataProducer ih
+      dataProducer ih seq
     Stop s -> do
       liftIO $ putMVar s ()
       return ()
@@ -135,5 +145,5 @@ processSerialPortWriter :: (MonadIO m, MonadMask m) =>
                            IHandle
                         -> m () -- ^The result of the pipe execution session
 processSerialPortWriter ih = runEffect . runSafeP $ do  
-  dataProducer ih
+  dataProducer ih 1
   >-> PBS.toHandle (serialH ih)
