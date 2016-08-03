@@ -9,6 +9,7 @@
 --
 module RFXCom.Message.InterfaceControl (
   InterfaceControlBody(..),
+  SubCommand(..),
   getMessage
   ) where
 

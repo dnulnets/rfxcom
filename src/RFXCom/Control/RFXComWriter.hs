@@ -7,6 +7,7 @@
 module RFXCom.Control.RFXComWriter (
   Handle(..),
   Config(..),
+  RFXCom.Control.RFXComWriter.Message(..),
   defaultConfig,
   withHandle,
   ) where
@@ -63,11 +64,13 @@ defaultConfig = Config
 
 
 -- |The messages to the writer thread
-data Message = Message RFXCom.Message.Base.Message | Stop (MVar ())
+data Message = Message RFXCom.Message.Base.Message -- ^The message to encode and send to the RFXCom device
+             | Stop (MVar ())                      -- ^Stop the writer thread
+             | Flush                               -- ^Flush the serial port
 
 -- |The service handle to the communcation processes.
 newtype Handle = Handle {
-  send::RFXCom.Message.Base.Message->IO () -- ^The send function that sends a bytestring to theRFXCom device
+  send::RFXCom.Control.RFXComWriter.Message->IO () -- ^The send function that sends a bytestring to theRFXCom device
   }
 
 -- |The internal service handle to the communcation processes.
@@ -88,7 +91,7 @@ withHandle config serialH loggerH io = do
   return x
   where
     sendMessage ih s = do
-      putMVar (mvar ih) $ Message s
+      putMVar (mvar ih) $ s
 
 
 --
@@ -110,13 +113,19 @@ writerThread ih = do
 
 -- |Waits for a message to arrive on the communcation channel and then injects it into
 -- the pipe stream down towards the RFXCom device.
-dataProducer::(MonadIO k, MonadMask k)=>MVar (RFXCom.Control.RFXComWriter.Message)-> Producer ByteString (SafeT k) ()
-dataProducer m = do
-  cmd <- liftIO $ takeMVar m
+dataProducer::(MonadIO k, MonadMask k)=>IHandle
+            -> Producer ByteString (SafeT k) ()
+dataProducer ih = do
+  cmd <- liftIO $ takeMVar $ mvar ih
   case cmd of
     Message bs -> do
+      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show bs
       yield $ msgEncoder 1 bs
-      dataProducer m
+      dataProducer ih
+    Flush -> do
+      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
+      liftIO $ SIO.hFlush $ serialH ih
+      dataProducer ih
     Stop s -> do
       liftIO $ putMVar s ()
       return ()
@@ -126,5 +135,5 @@ processSerialPortWriter :: (MonadIO m, MonadMask m) =>
                            IHandle
                         -> m () -- ^The result of the pipe execution session
 processSerialPortWriter ih = runEffect . runSafeP $ do  
-  dataProducer $ mvar ih
+  dataProducer ih
   >-> PBS.toHandle (serialH ih)

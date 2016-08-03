@@ -61,4 +61,5 @@ msgDecoderMux::Header                      -- ^The header of the message
              ->Get (Either String Message) -- ^A deocder that returns with an error string or the message
 msgDecoderMux hdr@(Header _ 0x20 _ _) = (Security1 <$>) <$> getMessage hdr
 msgDecoderMux hdr@(Header _ 0x52 _ _) = (TemperatureAndHumidity <$>) <$> getMessage hdr
+msgDecoderMux hdr@(Header _ 0x01 _ _) = (InterfaceResponse <$>) <$> getMessage hdr
 msgDecoderMux hdr = (UnknownMessage <$>) <$> getMessage hdr

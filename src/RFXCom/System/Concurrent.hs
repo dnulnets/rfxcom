@@ -10,14 +10,15 @@
 --
 module RFXCom.System.Concurrent (
   waitForChildren,
-  forkChild
+  forkChild,
+  executeAfterDelay
   ) where
 
 --
 -- External Import section
 --
 import           Control.Concurrent      (ThreadId, forkFinally, killThread,
-                                          myThreadId)
+                                          myThreadId, forkIO, threadDelay)
 import           Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar,
                                           takeMVar)
 
@@ -27,6 +28,12 @@ import           System.IO.Unsafe        (unsafePerformIO)
 --
 -- Internal Import Section
 --
+
+-- |Éxecutes an IO action after a certain amount of time
+executeAfterDelay :: Int    -- ^The delay in microseconds 
+                  -> IO ()  -- ^The IO action to execute after the delay
+                  -> IO ThreadId
+executeAfterDelay t f = forkIO (threadDelay t >> f)
 
 -- |Holds a list of all threads in this application. This list is not made public outside
 -- this module to ensure no one is tampering with it.

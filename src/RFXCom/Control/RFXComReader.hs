@@ -51,7 +51,7 @@ import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
 import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
                                                     info, warning)
-import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle(..))
+import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle(..),Message(..))
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -92,6 +92,7 @@ withHandle config serialH loggerH masterH io = do
 -- The serial port reader functions
 --
 
+koko ih msg = (RFXComM.send $ masterH ih) $ RFXComM.Message msg
 
 -- |The reader thread that reads all messages from the RFXCom device and sends them away to
 -- some handler.
@@ -125,6 +126,6 @@ processSerialPort ih handler =
 
     forever $ PBS.hGetSome 1 $ serialH ih
     >-> PP.parseForever msgParser
-    >-> RFXCom.Control.RFXComReader.take 3
+    >-> RFXCom.Control.RFXComReader.take 10
     >-> P.mapM (lift . handler)
     >-> terminator

@@ -41,7 +41,9 @@ library
                        RFXCom.System.Exception,
                        RFXCom.Control.RFXComWriter,
                        RFXCom.Control.RFXComReader,
-                       RFXCom.Control.RFXComMaster
+                       RFXCom.Control.RFXComMaster,
+                       RFXCom.Message.Encoder,
+                       RFXCom.Message.InterfaceControl
 
 executable rfxcom
   default-language:    Haskell2010
@@ -57,7 +59,9 @@ executable rfxcom
                        RFXCom.System.Exception,
                        RFXCom.Control.RFXComWriter,
                        RFXCom.Control.RFXComReader,
-                       RFXCom.Control.RFXComMaster
+                       RFXCom.Control.RFXComMaster,
+                       RFXCom.Message.Encoder,
+                       RFXCom.Message.InterfaceControl
 
   main-is:             Main.hs
   default-language:    Haskell2010
