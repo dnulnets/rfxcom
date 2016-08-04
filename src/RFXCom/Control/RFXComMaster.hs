@@ -158,8 +158,9 @@ executeStateMachine::IHandle -- ^The internal handle to the master thread
 executeStateMachine ih tmr ResetTheDevice Timeout = do
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: ResetTheDevice got Timeout (" ++ show tmr ++ ")"
   RFXComW.send (writerH ih) RFXComW.Flush
+  putStrLn "RFXCom Device is reset"
   RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.GetStatus}
-  newtmr <- scheduleTimeout ih 5000000
+  newtmr <- scheduleTimeout ih 1000000
   return (WaitForStatusFromTheDevice, Just newtmr)
 
 --
@@ -168,12 +169,13 @@ executeStateMachine ih tmr ResetTheDevice Timeout = do
 -- We got what we wanted, so cancel the current timer and send a start receiver command to the RFXCom device
 -- and reschedule a new timer for the response.
 --
-executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse body)) = do
+executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.InterfaceResponseBody {IR._cmnd=2})) = do
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Message (" ++ show tmr ++ ")"
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   maybe (return ()) (cancelTimeout ih) tmr
+  putStrLn "RFXCom Device status is ok"
   RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Start}
-  newtmr <- scheduleTimeout ih 5000000
+  newtmr <- scheduleTimeout ih 1000000
   return (WaitForStartFromTheDevice, Just newtmr)
   
 --
@@ -194,8 +196,9 @@ executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXCom
 --
 executeStateMachine ih tmr WaitForStatusFromTheDevice Timeout = do
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Timeout (" ++ show tmr ++ ")"
+  putStrLn "RFXCom Device timeout, resetting"
   RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
-  newtmr <- scheduleTimeout ih 5000000  
+  newtmr <- scheduleTimeout ih 1000000  
   return (ResetTheDevice, Just newtmr)
 
 --
@@ -204,10 +207,11 @@ executeStateMachine ih tmr WaitForStatusFromTheDevice Timeout = do
 -- We got a start acknowledge from the RFXCom device, so we are now good to go. Start waiting for messages from
 -- the RFXCom device or the MQTT broker.
 --
-executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse body)) = do
+executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.InterfaceResponseBody {IR._cmnd=7})) = do
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFomTheDevice got Message (" ++ show tmr ++ ")"
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
-  pure $ (cancelTimeout ih) <$> tmr
+  putStrLn "RFXCom Device started"
+  maybe (return ()) (cancelTimeout ih) tmr  
   return (WaitForMessage, Nothing)
 
 executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message _) = do
@@ -218,7 +222,8 @@ executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXCom
 executeStateMachine ih tmr WaitForStartFromTheDevice Timeout = do
   Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFromTheDevice got Timeout (" ++ show tmr ++ ")"
   RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
-  newtmr <- scheduleTimeout ih 5000000
+  putStrLn "RFXCom Device start timeout, resetting"
+  newtmr <- scheduleTimeout ih 1000000
   return (ResetTheDevice, Just newtmr)
 
 --
@@ -250,9 +255,10 @@ masterThread ih = do
   --
   -- Send the reset command to the RFXCom device
   --
+  putStrLn "Resetting the RFXComDevice"
   RFXComW.send (writerH ih) RFXComW.Flush
   RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
-  tmr <- scheduleTimeout ih 5000000
+  tmr <- scheduleTimeout ih 1000000
 
   --
   -- Start the command receiving loop and state machine
@@ -268,6 +274,6 @@ masterThread ih = do
         _ -> do
           (newstate, newtmr) <- executeStateMachine ih tmr state cmd
           loop newstate newtmr
-      putStrLn ""
+
 
         

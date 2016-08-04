@@ -104,10 +104,7 @@ quit h = do
   loop
   where
     loop = do
-      putStrLn "Press 'q' to quit"
       c <- getChar
       if (c /= 'q')
-        then do
-        putStrLn ""
-        loop
+        then loop
         else return ()

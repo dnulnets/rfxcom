@@ -131,6 +131,6 @@ processSerialPort ih handler =
 
     forever $ PBS.hGetSome 1 $ serialH ih
     >-> PP.parseForever msgParser
-    >-> RFXCom.Control.RFXComReader.take 10
+--    >-> RFXCom.Control.RFXComReader.take 10000
     >-> P.mapM_ (lift . handler)
 --    >-> terminator

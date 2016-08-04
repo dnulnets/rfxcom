@@ -46,7 +46,7 @@ threadChildren = unsafePerformIO (newMVar [])
 waitForChildren::IO ()
 waitForChildren = do
   cs <- takeMVar threadChildren
-  putStrLn $ "RFXCom.System.Concurrent.waitForChildren: Waiting for " ++ show (length cs) ++ " threads to finish"
+  -- putStrLn $ "RFXCom.System.Concurrent.waitForChildren: Waiting for " ++ show (length cs) ++ " threads to finish"
   putMVar threadChildren cs
   loop
   where
@@ -57,7 +57,7 @@ waitForChildren = do
       case cs of
         []   -> return ()
         m:ms -> do
-          putStrLn $ "RFXCom.System.Concurrent: Waiting for " ++ show (fst m)
+          -- putStrLn $ "RFXCom.System.Concurrent: Waiting for " ++ show (fst m)
           putMVar threadChildren ms
           takeMVar $ snd m
           loop
@@ -71,9 +71,9 @@ forkChild io = do
   childs <- takeMVar threadChildren
   tid <- forkFinally io (\e -> do
                             putMVar mvar ()
-                            tid <- myThreadId
-                            putStrLn $ "RFXCom.System.Concurrent.forkChild: Cleaning up for " ++ show tid ++ " Reason=(" ++ show e ++ ")"
+                            -- tid <- myThreadId
+                            -- putStrLn $ "RFXCom.System.Concurrent.forkChild: Cleaning up for " ++ show tid ++ " Reason=(" ++ show e ++ ")"
                         )
   putMVar threadChildren ((tid,mvar):childs)
-  putStrLn $ "RFXCom.System.Concurrent.forkChild: " ++ show tid ++ " forked"
+  -- putStrLn $ "RFXCom.System.Concurrent.forkChild: " ++ show tid ++ " forked"
   return tid

@@ -43,7 +43,8 @@ library
                        RFXCom.Control.RFXComReader,
                        RFXCom.Control.RFXComMaster,
                        RFXCom.Message.Encoder,
-                       RFXCom.Message.InterfaceControl
+                       RFXCom.Message.InterfaceControl,
+                       RFXCom.Message.InterfaceResponse
 
 executable rfxcom
   default-language:    Haskell2010
@@ -61,7 +62,8 @@ executable rfxcom
                        RFXCom.Control.RFXComReader,
                        RFXCom.Control.RFXComMaster,
                        RFXCom.Message.Encoder,
-                       RFXCom.Message.InterfaceControl
+                       RFXCom.Message.InterfaceControl,
+                       RFXCom.Message.InterfaceResponse
 
   main-is:             Main.hs
   default-language:    Haskell2010
