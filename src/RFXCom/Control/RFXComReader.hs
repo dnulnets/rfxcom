@@ -49,8 +49,8 @@ import           RFXCom.Message.Base        (Message)
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
-import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
-                                                    info, warning)
+import qualified RFXCom.System.Log          as Log (Handle (..), _debug, _error,
+                                                    _info, _warning)
 import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle(..),Message(..))
 
 -- |The configuration of the RFXCom Serial device reader processes
@@ -93,7 +93,7 @@ withHandle config serialH loggerH masterH io = do
 --
 
 kkk ih msg = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComReader.readThread: Read " ++ show msg
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComReader.readThread: Read " ++ show msg
   (RFXComM.send $ masterH ih) $ RFXComM.Message msg
 
 koko::IHandle->Either PB.DecodingError Message->IO ()
@@ -103,7 +103,7 @@ koko ih msg = either (return . const ()) (kkk ih) msg
 -- some handler.
 readerThread::IHandle->IO ()
 readerThread ih = do
-  Log.info (loggerH ih) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
+  Log._info (loggerH ih) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
   processSerialPort ih (koko ih)
 
 

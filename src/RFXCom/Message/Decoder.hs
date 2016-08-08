@@ -31,9 +31,8 @@ import qualified Pipes.Parse                as PP
 -- Internal import section
 --
 import           RFXCom.Message.Base        (Message (..))
-import           RFXCom.Message.BaseMessage (Header(..),
-                                             RFXComMessage,
-                                             getMessage)
+import qualified RFXCom.Message.BaseMessage as BM (Header (..), RFXComMessage,
+                                                   getMessage)
 
 -- |Parses the bytestream into rfxcom messages based on the rfxcom decoder and return with
 -- decoding errors or the rfxcom message.
@@ -51,15 +50,15 @@ msgDecoder = do
         mtype <- getWord8
         msubtype <- getWord8
         msqnr <- getWord8
-        (either (CorruptMessage) id <$>) <$> msgDecoderMux $ Header msize mtype msubtype msqnr
+        (either (CorruptMessage) id <$>) <$> msgDecoderMux $ BM.Header msize mtype msubtype msqnr
       else
         return $ CorruptMessage "The message is corrupt, the length of the message must be longer than four."
 
 -- |Handles the conversion from the RFXCom message type value to a 'Message' using the correct type
 -- constructor.
-msgDecoderMux::Header                      -- ^The header of the message
-             ->Get (Either String Message) -- ^A deocder that returns with an error string or the message
-msgDecoderMux hdr@(Header _ 0x20 _ _) = (Security1 <$>) <$> getMessage hdr
-msgDecoderMux hdr@(Header _ 0x52 _ _) = (TemperatureAndHumidity <$>) <$> getMessage hdr
-msgDecoderMux hdr@(Header _ 0x01 _ _) = (InterfaceResponse <$>) <$> getMessage hdr
-msgDecoderMux hdr = (UnknownMessage <$>) <$> getMessage hdr
+msgDecoderMux::BM.Header                      -- ^The header of the message
+             ->Get (Either String Message) -- ^A decoder that returns with an error string or the message
+msgDecoderMux hdr@(BM.Header _ 0x20 _ _) = (Security1 <$>) <$> BM.getMessage hdr
+msgDecoderMux hdr@(BM.Header _ 0x52 _ _) = (TemperatureAndHumidity <$>) <$> BM.getMessage hdr
+msgDecoderMux hdr@(BM.Header _ 0x01 _ _) = (InterfaceResponse <$>) <$> BM.getMessage hdr
+msgDecoderMux hdr = (UnknownMessage <$>) <$> BM.getMessage hdr

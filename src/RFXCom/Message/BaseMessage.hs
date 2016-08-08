@@ -8,7 +8,7 @@
 --
 module RFXCom.Message.BaseMessage (
   Header(..),
-  RawBody(..),
+  Body(..),
   RFXComMessage(..)
   ) where
 
@@ -58,17 +58,17 @@ data Header = Header
 
 -- |The generic message type when the message is unknown, not handled by this library
 -- or no specific message type is needed. It just contains the raw message body.
-data RawBody = RawBody
+data Body = Body
   { _data :: ![Word8]} -- ^The raw body of the message
   deriving (Show)
 
 -- |Instance definition of the raw body  message
-instance RFXComMessage RawBody where
+instance RFXComMessage Body where
 
   -- |The message parser for the 'RawBody'.
   getMessage hdr = do
     if size>0 then
-      (Right . RawBody . unpack )  <$> (getByteString $ size)
+      (Right . Body . unpack )  <$> (getByteString $ size)
       else
       return $ Left "The message is corrupt, the length of the message must be longer than four."
       where

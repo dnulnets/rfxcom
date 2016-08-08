@@ -16,11 +16,11 @@ module RFXCom.Message.Base (
 --
 -- Internal Import Section
 --
-import           RFXCom.Message.BaseMessage            (Header, RawBody)
-import           RFXCom.Message.InterfaceControl       (InterfaceControlBody)
-import           RFXCom.Message.InterfaceResponse       (InterfaceResponseBody)
-import           RFXCom.Message.Security1              (Security1Body)
-import           RFXCom.Message.TemperatureAndHumidity (TemperatureAndHumidityBody)
+import qualified RFXCom.Message.BaseMessage            as BM (Body, Header)
+import qualified RFXCom.Message.InterfaceControl       as IC (Body)
+import qualified RFXCom.Message.InterfaceResponse      as IR (Body)
+import qualified RFXCom.Message.Security1              as S1 (Body)
+import qualified RFXCom.Message.TemperatureAndHumidity as TH (Body)
 
 -- |This data structure holds all of the possible messages to and from the RFXCom
 -- device. To extend this structure just add a typeconstructor and create or
@@ -32,17 +32,17 @@ import           RFXCom.Message.TemperatureAndHumidity (TemperatureAndHumidityBo
 -- In this file:
 --
 -- data Message = .....
---              | <New message constructor> <new message body type>
+--              | <New message constructor> <module>.Body
 --
--- In <message boy type> hs-file:
+-- In <message body type> hs-file:
 --
--- instance RFXComMessage  <new Message body type> where
+-- instance RFXComMessage Body where
 --   ....
 --
 -- In Decode file:
 --
 -- Add pattern matching to msgDecoderMux for the message type (_type field)
--- and create the appropriate message body and use the new message
+-- and create the message body and use the new message
 -- constructor
 --
 -- In Encode file:
@@ -60,18 +60,18 @@ data Message
 
   -- |This is an unknown message, i.e. a message that has the correct header but the type
   -- is unknown or not handled. The information contains the raw binary body.
-  | UnknownMessage RawBody
+  | UnknownMessage BM.Body
 
   -- |This is the temperature and humidity sensor reading message.
-  | TemperatureAndHumidity TemperatureAndHumidityBody
+  | TemperatureAndHumidity TH.Body
 
   -- |This is the security 1 sensor reading message
-  | Security1 Security1Body
+  | Security1 S1.Body
 
   -- |This is the interface control message
-  | InterfaceControl InterfaceControlBody
+  | InterfaceControl IC.Body
 
   -- |This is the response to the interface control message
-  | InterfaceResponse InterfaceResponseBody
+  | InterfaceResponse IR.Body
   deriving (Show)
 

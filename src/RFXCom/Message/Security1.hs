@@ -8,8 +8,7 @@
 -- See LICENSE file.
 --
 module RFXCom.Message.Security1 (
-  Security1Body(..),
-  getMessage
+  Body(..)
   ) where
 
 --
@@ -24,24 +23,25 @@ import           Control.Monad              (replicateM)
 --
 -- Internal Import Section
 --
-import           RFXCom.Message.BaseMessage (Header (..), RFXComMessage (..))
+import qualified RFXCom.Message.BaseMessage as BM (Header (..),
+                                                   RFXComMessage (..))
 
--- |The temperature and humidity sensor reading message.
-data Security1Body = Security1Body
+-- |The security 1 message body
+data Body = Body
   { _data :: ![Word8]} -- ^The raw body of the message
   deriving (Show)
 
 -- |Instance definition of the temperature and humidity sensor reading message
-instance RFXComMessage Security1Body where
+instance BM.RFXComMessage Body where
 
   -- |The message parser for the 'Security1Body'
   getMessage hdr = do
     if size>0 then
-      (Right . Security1Body . unpack )  <$> (getByteString $ size)
+      (Right . Body . unpack )  <$> (getByteString $ size)
       else
       return $ Left "Wrong size of the message body, it must be at least one byte"
       where
-        size = fromIntegral (_size hdr) - 3
+        size = fromIntegral (BM._size hdr) - 3
 
   -- |This message cannot be sent
   putMessage = undefined

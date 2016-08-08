@@ -8,7 +8,7 @@
 -- See LICENSE file.
 --
 module RFXCom.Message.InterfaceResponse (
-  InterfaceResponseBody(..),
+  Body(..),
   ) where
 
 --
@@ -24,11 +24,11 @@ import           Data.ByteString (unpack)
 --
 -- Internal Import Section
 --
-import qualified RFXCom.Message.BaseMessage as H (Header(..),
+import qualified RFXCom.Message.BaseMessage as BM (Header(..),
                                                   RFXComMessage(..))
 
--- |The interface control response message
-data InterfaceResponseBody = InterfaceResponseBody
+-- |The interface control response message body
+data Body = Body
   {
     _subtype::Word8
   , _cmnd::Word8
@@ -38,16 +38,16 @@ data InterfaceResponseBody = InterfaceResponseBody
 
 
 -- |Instance definition of the interface response message
-instance H.RFXComMessage InterfaceResponseBody where
+instance BM.RFXComMessage Body where
   
   -- |The message parser for the 'InterfaceResponseBody' structure
   getMessage header =
-    if ((H._size header == 13) && (H._subtype header /= 7)) ||
-       ((H._size header == 20) && (H._subtype header == 7)) then do
+    if ((BM._size header == 13) && (BM._subtype header /= 7)) ||
+       ((BM._size header == 20) && (BM._subtype header == 7)) then do
       
       cmnd <- getWord8
-      arr <- unpack <$> (getByteString $ fromIntegral (H._size header) - 4)
-      return $ Right $ InterfaceResponseBody (H._subtype header) cmnd arr
+      arr <- unpack <$> (getByteString $ fromIntegral (BM._size header) - 4)
+      return $ Right $ Body (BM._subtype header) cmnd arr
     
     else do
     

@@ -8,9 +8,8 @@
 -- See LICENSE file.
 --
 module RFXCom.Message.InterfaceControl (
-  InterfaceControlBody(..),
-  SubCommand(..),
-  getMessage
+  Body(..),
+  Command(..)
   ) where
 
 --
@@ -26,22 +25,24 @@ import           Data.Bits
 --
 -- Internal Import Section
 --
-import           RFXCom.Message.BaseMessage (Header (..), RFXComMessage (..))
+import qualified RFXCom.Message.BaseMessage as BM (Header (..),
+                                                   RFXComMessage (..))
 
-data SubCommand = Reset
-                | GetStatus
-                | Start
-                deriving (Show)
+-- |The command that is sent on the message
+data Command = Reset     -- ^Reset the RFXCom Device
+             | GetStatus -- ^Get the status of the RFXCom device
+             | Start     -- ^Start the reception of the RFXCom device
+             deriving (Show)
 
--- |The temperature and humidity sensor reading message.
-data InterfaceControlBody = InterfaceControlBody
+-- |The body of the interface control message
+data Body = Body
   {
-    _cmnd::SubCommand
+    _cmnd::Command -- ^The command to send as specified by 'Command'
   }
   deriving (Show)
 
 -- |Instance definition of the temperature and humidity sensor reading message
-instance RFXComMessage InterfaceControlBody where
+instance BM.RFXComMessage Body where
 
   -- |This message cannot ever be sent from the RFXCom device so we do not need to be able
   -- to parse it.

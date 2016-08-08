@@ -43,14 +43,14 @@ import           Data.Word                  (Word8)
 -- Internal import section
 --
 import           RFXCom.Message.Base
-import qualified          RFXCom.Message.InterfaceControl as IC
-import qualified          RFXCom.Message.InterfaceResponse as IR
+import qualified          RFXCom.Message.InterfaceControl as IC (Body(..),Command(..))
+import qualified          RFXCom.Message.InterfaceResponse as IR (Body(..))
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren, executeAfterDelay)
 import           RFXCom.System.Exception    (ResourceException (..))
 import qualified RFXCom.Control.RFXComWriter as RFXComW (Handle(..), Message(..))
-import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
-                                                    info, warning)
+import qualified RFXCom.System.Log          as Log (Handle (..), _debug, _error,
+                                                    _info, _warning)
 
 -- |The configuration of the RFXCom master process settings
 data Config = Config
@@ -131,7 +131,7 @@ scheduleTimeout::IHandle -- ^The internal handle to the master thread
                -> IO ThreadId -- ^The threadid of the thread doing the waiting and execution
 scheduleTimeout ih t = do
   tid <- executeAfterDelay t $ sendToMaster ih Timeout
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.scheduleTimeout: Scheduling a timeout for " ++ show t ++ " " ++ show tid
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.scheduleTimeout: Scheduling a timeout for " ++ show t ++ " " ++ show tid
   return tid
 
 -- |Cancels the timeout
@@ -139,7 +139,7 @@ cancelTimeout::IHandle   -- ^Internal handle to the master thread
              ->ThreadId  -- ^The thread id of the timer thread that is going to be cancelled
              ->IO ()
 cancelTimeout ih tid = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.scheduleTimeout: Cancelling current timeout for " ++ show tid
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.scheduleTimeout: Cancelling current timeout for " ++ show tid
   killThread tid
 
 
@@ -156,10 +156,10 @@ executeStateMachine::IHandle -- ^The internal handle to the master thread
 -- Flush the serial port and send the Get Status command to the RFXCom device
 --
 executeStateMachine ih tmr ResetTheDevice Timeout = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: ResetTheDevice got Timeout (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: ResetTheDevice got Timeout (" ++ show tmr ++ ")"
   RFXComW.send (writerH ih) RFXComW.Flush
   putStrLn "RFXCom Device is reset"
-  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.GetStatus}
+  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.Body {IC._cmnd = IC.GetStatus}
   newtmr <- scheduleTimeout ih 1000000
   return (WaitForStatusFromTheDevice, Just newtmr)
 
@@ -169,12 +169,12 @@ executeStateMachine ih tmr ResetTheDevice Timeout = do
 -- We got what we wanted, so cancel the current timer and send a start receiver command to the RFXCom device
 -- and reschedule a new timer for the response.
 --
-executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.InterfaceResponseBody {IR._cmnd=2})) = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Message (" ++ show tmr ++ ")"
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
+executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.Body {IR._cmnd=2})) = do
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Message (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   maybe (return ()) (cancelTimeout ih) tmr
   putStrLn "RFXCom Device status is ok"
-  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Start}
+  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.Body {IC._cmnd = IC.Start}
   newtmr <- scheduleTimeout ih 1000000
   return (WaitForStartFromTheDevice, Just newtmr)
   
@@ -184,8 +184,8 @@ executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXCom
 -- Ignore any other message that is not a response to the get status message. Just continue waiting.
 --
 executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXComMaster.Message _ ) = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice ignoring wrong message (" ++ show tmr ++ ")"
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice ignoring wrong message (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   return (WaitForStatusFromTheDevice, tmr)
 
 --
@@ -195,9 +195,9 @@ executeStateMachine ih tmr WaitForStatusFromTheDevice msg@(RFXCom.Control.RFXCom
 -- device again and retry this
 --
 executeStateMachine ih tmr WaitForStatusFromTheDevice Timeout = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Timeout (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Timeout (" ++ show tmr ++ ")"
   putStrLn "RFXCom Device timeout, resetting"
-  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
+  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.Body {IC._cmnd = IC.Reset}
   newtmr <- scheduleTimeout ih 1000000  
   return (ResetTheDevice, Just newtmr)
 
@@ -207,21 +207,21 @@ executeStateMachine ih tmr WaitForStatusFromTheDevice Timeout = do
 -- We got a start acknowledge from the RFXCom device, so we are now good to go. Start waiting for messages from
 -- the RFXCom device or the MQTT broker.
 --
-executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.InterfaceResponseBody {IR._cmnd=7})) = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFomTheDevice got Message (" ++ show tmr ++ ")"
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
+executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message (InterfaceResponse IR.Body {IR._cmnd=7})) = do
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFomTheDevice got Message (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   putStrLn "RFXCom Device started"
   maybe (return ()) (cancelTimeout ih) tmr  
   return (WaitForMessage, Nothing)
 
 executeStateMachine ih tmr WaitForStartFromTheDevice  msg@(RFXCom.Control.RFXComMaster.Message _) = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFomTheDevice ignoring wrong Message (" ++ show tmr ++ ")"
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFomTheDevice ignoring wrong Message (" ++ show tmr ++ ")"
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   return (WaitForStartFromTheDevice, tmr)  
 
 executeStateMachine ih tmr WaitForStartFromTheDevice Timeout = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFromTheDevice got Timeout (" ++ show tmr ++ ")"
-  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFromTheDevice got Timeout (" ++ show tmr ++ ")"
+  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.Body {IC._cmnd = IC.Reset}
   putStrLn "RFXCom Device start timeout, resetting"
   newtmr <- scheduleTimeout ih 1000000
   return (ResetTheDevice, Just newtmr)
@@ -232,8 +232,8 @@ executeStateMachine ih tmr WaitForStartFromTheDevice Timeout = do
 -- Just print the message for now
 --
 executeStateMachine ih tmr WaitForMessage msg = do
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForMessages got Message"  
-  Log.info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForMessages got Message"  
+  Log._info (loggerH ih) $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   return (WaitForMessage, tmr)
 
 --
@@ -242,7 +242,7 @@ executeStateMachine ih tmr WaitForMessage msg = do
 -- This is the catch all state handler, i.e. if we missged something above.
 --
 executeStateMachine ih tmr state signal = do
-  Log.info (loggerH ih) $ "Unhandled state or signal, State=" ++ show state ++ ", Signal=" ++ show signal
+  Log._info (loggerH ih) $ "Unhandled state or signal, State=" ++ show state ++ ", Signal=" ++ show signal
   return (state, tmr)
 
 
@@ -250,14 +250,14 @@ executeStateMachine ih tmr state signal = do
 masterThread::IHandle -- ^The internal handle to the master threads
             ->IO ()
 masterThread ih = do
-  Log.info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
+  Log._info (loggerH ih) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
 
   --
   -- Send the reset command to the RFXCom device
   --
   putStrLn "Resetting the RFXComDevice"
   RFXComW.send (writerH ih) RFXComW.Flush
-  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.InterfaceControlBody {IC._cmnd = IC.Reset}
+  RFXComW.send (writerH ih) $ RFXComW.Message $ InterfaceControl IC.Body {IC._cmnd = IC.Reset}
   tmr <- scheduleTimeout ih 1000000
 
   --

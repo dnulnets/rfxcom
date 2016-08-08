@@ -47,13 +47,13 @@ import Data.Binary.Put (Put, putWord8)
 -- Internal import section
 --
 import           RFXCom.Message.Base        (Message(..))
-import           RFXCom.Message.BaseMessage (RFXComMessage(..))
-import           RFXCom.Message.InterfaceControl (InterfaceControlBody(..), SubCommand(..))
+import qualified          RFXCom.Message.BaseMessage as BM (RFXComMessage(..))
+import qualified          RFXCom.Message.InterfaceControl as IC (Body(..), Command(..))
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
-import qualified RFXCom.System.Log          as Log (Handle (..), debug, error,
-                                                    info, warning)
+import qualified RFXCom.System.Log          as Log (Handle (..), _debug, _error,
+                                                    _info, _warning)
 import RFXCom.Message.Encoder (msgEncoder)
 
 -- |The configuration of the RFXCom writer process settings
@@ -109,7 +109,7 @@ stopWriterThread mvar = do
 -- communcation channel to the writer.
 writerThread::IHandle->IO ()
 writerThread ih = do
-  Log.info (loggerH ih) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"  
+  Log._info (loggerH ih) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"  
   processSerialPortWriter ih
 
 -- |Waits for a message to arrive on the communcation channel and then injects it into
@@ -120,20 +120,20 @@ dataProducer::(MonadIO k, MonadMask k)=>IHandle
 dataProducer ih seq = do
   cmd <- liftIO $ takeMVar $ mvar ih
   case cmd of
-    Message msg@(InterfaceControl InterfaceControlBody {_cmnd=Reset}) -> do
-      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+    Message msg@(InterfaceControl IC.Body {IC._cmnd=IC.Reset}) -> do
+      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
       bs <- return $ msgEncoder 0 msg
-      liftIO $ Log.info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
+      liftIO $ Log._info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
       yield $ bs
       dataProducer ih 1
     Message msg -> do
-      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
       bs <- return $ msgEncoder seq msg
-      liftIO $ Log.info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
+      liftIO $ Log._info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
       yield $ bs
       dataProducer ih (seq+1)
     Flush -> do
-      liftIO $ Log.info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
+      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
       liftIO $ SIO.hFlush $ serialH ih
       dataProducer ih seq
     Stop s -> do

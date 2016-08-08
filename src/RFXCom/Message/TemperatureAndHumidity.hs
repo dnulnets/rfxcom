@@ -8,9 +8,8 @@
 -- See LICENSE file.
 --
 module RFXCom.Message.TemperatureAndHumidity (
-  TemperatureAndHumidityBody(..),
-  HumidityStatus (..),
-  getMessage
+  Body(..),
+  HumidityStatus (..)
   ) where
 
 --
@@ -24,7 +23,7 @@ import           Data.Binary.Get (getWord8, getWord16be)
 --
 -- Internal Import Section
 --
-import RFXCom.Message.BaseMessage (Header(..),
+import qualified RFXCom.Message.BaseMessage as BM (Header(..),
                                    RFXComMessage(..))
 
 -- |The interpretation of the humidity value.
@@ -36,7 +35,7 @@ data HumidityStatus = Normal
                     deriving (Show)
 
 -- |The temperature and humidity sensor reading message.
-data TemperatureAndHumidityBody = TemperatureAndHumidityBody
+data Body = TemperatureAndHumidityBody
   {_id::Integer                    -- ^The identity of the sensor
   ,_temperature::Float             -- ^The temperature reading of the sensor
   ,_humidity::Float                -- ^The humidity of the sensor [0-100%] RH
@@ -73,10 +72,10 @@ rssiLevel::Word8->Integer
 rssiLevel sts = fromIntegral (sts .&. 0x0f)
 
 -- |Instance definition of the temperature and humidity sensor reading message
-instance RFXComMessage TemperatureAndHumidityBody where
+instance BM.RFXComMessage Body where
   
   -- |The message parser for the 'TemperatureAndHumidityBody'.
-  getMessage header = if _size header == 10 then do
+  getMessage header = if BM._size header == 10 then do
     
     mid <- fromIntegral <$> getWord16be
     mtemperatureH <- getWord8
