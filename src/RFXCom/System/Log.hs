@@ -10,6 +10,8 @@ module RFXCom.System.Log (
   Handle(..),
   Priority(..),
   MonadLogger(..),
+  LoggerT(..),
+  runLoggerT,
   _info,
   _debug,
   _warning,
@@ -23,6 +25,7 @@ import Prelude hiding (log)
 import qualified System.IO as SIO
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (MonadTrans(..))
 
 --
 -- Internal Import Section
@@ -52,26 +55,32 @@ class (Monad m, MonadIO m) => MonadLogger m where
 --
 -- The actual type definition of the logger transfomer monad
 --
-newtype LoggerT m a = LoggerT (ReaderT Handle m a)
-  deriving (Functor, Applicative, Monad, MonadIO)
+newtype LoggerT m a = LoggerT ((ReaderT Handle m) a)
+  deriving (Functor, Applicative, Monad, MonadReader Handle, MonadIO)
 
+instance MonadTrans LoggerT where
+  lift m = LoggerT (lift m)
+  
 --
 -- The concrete implementation of the MonadLogger class
 --
 instance (Monad m, MonadIO m)=>MonadLogger (LoggerT m) where
   
-  info s = logger Info s  
+  info s = logger Info s
   warning s = logger Warning s
   error s = logger Error s
   debug s = logger Debug s
-
+  
+--instance MonadTrans LoggerT where
+--  lift = LoggerT . lift
+  
 --
 -- Injects the environment into the LoggerT
 --
 runLoggerT::LoggerT m a->Handle-> m a
-runLoggerT (LoggerT f) h = runReaderT f h  
+runLoggerT (LoggerT m) h = runReaderT m h  
 
-logger::(Monad m, MonadIO m)=>Priority->String->LoggerT m ()
+logger::(Monad m,MonadIO m)=>Priority->String->LoggerT m ()
 logger p s = do
   handle <- LoggerT ask
   liftIO $ (log handle) p s

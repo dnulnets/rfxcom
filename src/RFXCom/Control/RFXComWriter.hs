@@ -1,3 +1,8 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 -- |This module holds the control process for writing messages to the RFXCom device
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06
@@ -27,6 +32,10 @@ import           Control.Concurrent.MVar    (MVar, newEmptyMVar, newMVar,
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Managed      (Managed, managed, runManaged)
+--import Control.Monad.Reader (MonadReader(..), ReaderT(..), ask, runReaderT)
+
+import Control.Monad.Reader.Class (MonadReader(..))
+import Control.Monad.Trans.Reader (ReaderT(..), ask, runReaderT)
 
 import           Pipes
 
@@ -52,8 +61,14 @@ import qualified          RFXCom.Message.InterfaceControl as IC (Body(..), Comma
 import           RFXCom.Message.Decoder     (msgParser)
 import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
 import           RFXCom.System.Exception    (ResourceException (..))
-import qualified RFXCom.System.Log          as Log (Handle (..), _debug, _error,
-                                                    _info, _warning)
+import qualified RFXCom.System.Log as Log
+
+--import qualified RFXCom.System.Log          as Log (Handle (..),
+--                                                    _debug, _error,
+--                                                   _info, _warning,
+--                                                    MonadLogger (..),
+--                                                    LoggerT(..), runLoggerT)
+       
 import RFXCom.Message.Encoder (msgEncoder)
 
 -- |The configuration of the RFXCom writer process settings
@@ -80,6 +95,40 @@ data IHandle = IHandle {
   , serialH::SIO.Handle      -- ^The handle to the serial port
   , mvar::MVar (RFXCom.Control.RFXComWriter.Message)}   -- ^The communcation mvar
 
+--
+--
+--
+
+newtype WriterThread m a = WriterThread (ReaderT IHandle (Log.LoggerT m) a)
+  deriving (Functor, Applicative, Monad, MonadReader IHandle, MonadIO)
+
+--deriving instance (Log.MonadLogger m) => Log.MonadLogger (ReaderT r m)
+
+deriving instance (MonadIO m, Log.MonadLogger (ReaderT IHandle (Log.LoggerT m))) => Log.MonadLogger (WriterThread m)
+  
+newtype Easy m a = Easy (Log.LoggerT m a)
+  deriving (Functor, Applicative, Monad, MonadIO, Log.MonadLogger)
+
+doit::Easy IO ()
+doit = do
+  Log.info ""
+  liftIO $ putStrLn ""
+  
+    
+ddoit::WriterThread IO ()
+ddoit = do
+  --Log.whop 
+--  h <- ask
+--  Log.info ""
+  liftIO $ putStrLn ""
+  return ()
+
+runWriterThread::WriterThread m a -> IHandle -> Log.Handle -> m a
+runWriterThread (WriterThread m) c1 c2 = Log.runLoggerT (runReaderT m c1) c2
+
+--
+--
+--
 
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
 -- a new RFXCom writer communication thread will be started.
