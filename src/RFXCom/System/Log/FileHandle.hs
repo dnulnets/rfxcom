@@ -179,7 +179,7 @@ withHandle
 withHandle config io = do
   chan <- newChan
   tid <- forkChild $ loggerThread config chan
-  x <- io $ Log.Handle { Log.log =  logMessage chan }
+  x <- io $ Log.Handle { Log.writeLog =  logMessage chan }
   s <- stopLoggerThread chan
   return x
 

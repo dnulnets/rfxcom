@@ -31,7 +31,8 @@ library
                        unix,
                        directory,
                        mtl,
-                       transformers
+                       transformers,
+                       exceptions
 
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
@@ -86,7 +87,8 @@ executable rfxcom
                        unix,
                        directory,
                        mtl,
-                       transformers
+                       transformers,
+                       exceptions
 
                        
                        

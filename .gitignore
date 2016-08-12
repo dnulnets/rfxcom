@@ -27,3 +27,5 @@ auto-save-list
 tramp
 .\#*
 *.log
+*.log.*
+
