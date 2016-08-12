@@ -1,5 +1,7 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- |This module holds the control processes for reading the message from the RFXCom
--- device.
+-- device and sending them off to the master controller
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06
 -- Copyright (c) 2017, Sundsvall, Sweden.
@@ -9,49 +11,57 @@ module RFXCom.Control.RFXComReader (
   Handle(..),
   Config(..),
   defaultConfig,
-  withHandle,
+  withHandle
   ) where
 
 --
 -- Import section
 --
-import           System.Hardware.Serialport (CommSpeed (..), Parity (..),
-                                             SerialPortSettings (..),
-                                             StopBits (..),
-                                             defaultSerialSettings, hOpenSerial)
-import qualified System.IO                  as SIO
+import           System.Hardware.Serialport  (CommSpeed (..), Parity (..),
+                                              SerialPortSettings (..),
+                                              StopBits (..),
+                                              defaultSerialSettings,
+                                              hOpenSerial)
+import qualified System.IO                   as SIO
 
-import           Control.Concurrent (killThread)
-import           Control.Concurrent.Chan    (Chan, newChan, readChan, writeChan)
-import           Control.Concurrent.MVar    (MVar, newEmptyMVar, newMVar,
-                                             putMVar, takeMVar)
+import           Control.Concurrent          (killThread)
+import           Control.Concurrent.Chan     (Chan, newChan, readChan,
+                                              writeChan)
+import           Control.Concurrent.MVar     (MVar, newEmptyMVar, newMVar,
+                                              putMVar, takeMVar)
 import           Control.Exception
 import           Control.Monad
-import           Control.Monad.Managed      (Managed, managed, runManaged)
+import           Control.Monad.Catch         (MonadCatch, MonadMask, MonadThrow)
+import           Control.Monad.Managed       (Managed, managed, runManaged)
+import           Control.Monad.Reader        (MonadReader (..), ReaderT (..),
+                                              ask, runReaderT)
 
 import           Pipes
 
-import qualified Pipes.Binary               as PB (DecodingError (..),
-                                                   decodeGet)
-import qualified Pipes.ByteString           as PBS (fromLazy, hGetSome,
-                                                    toHandle)
-import qualified Pipes.Parse                as PP
-import qualified Pipes.Prelude              as P (mapM_, repeatM, mapM)
+import qualified Pipes.Binary                as PB (DecodingError (..),
+                                                    decodeGet)
+import qualified Pipes.ByteString            as PBS (fromLazy, hGetSome,
+                                                     toHandle)
+import qualified Pipes.Parse                 as PP
+import qualified Pipes.Prelude               as P (mapM, mapM_, repeatM)
 import           Pipes.Safe
 
-import           Data.ByteString            (ByteString)
-import           Data.Word                  (Word8)
+import           Data.ByteString             (ByteString)
+import           Data.Word                   (Word8)
 
 --
 -- Internal import section
 --
-import           RFXCom.Message.Base        (Message)
-import           RFXCom.Message.Decoder     (msgParser)
-import           RFXCom.System.Concurrent   (forkChild, waitForChildren)
-import           RFXCom.System.Exception    (ResourceException (..))
-import qualified RFXCom.System.Log          as Log (Handle (..), _debug, _error,
-                                                    _info, _warning)
-import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle(..),Message(..))
+import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle (..),
+                                                         Message (..))
+import           RFXCom.Message.Base         (Message)
+import           RFXCom.Message.Decoder      (msgParser)
+import           RFXCom.System.Concurrent    (forkChild, waitForChildren)
+import           RFXCom.System.Exception     (ResourceException (..))
+import qualified RFXCom.System.Log           as Log (Handle (..), LoggerT (..),
+                                                     MonadLogger (..), _debug,
+                                                     _error, _info, _warning,
+                                                     runLoggerT)
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -65,11 +75,11 @@ defaultConfig = Config
 data Handle = Handle
 
 
--- |The internal service handle to the communication processes.
-data IHandle = IHandle {
-  loggerH::Log.Handle        -- ^The handle to the logger service
-  , serialH::SIO.Handle      -- ^The handle to the serial port
-  , masterH::RFXComM.Handle  -- ^The handle to the master process
+-- |The RFXCom Reader environment that it executes with
+data Environment =  Environment {
+  loggerH   :: Log.Handle      -- ^The handle to the logger service
+  , serialH :: SIO.Handle      -- ^The handle to the serial port
+  , masterH :: RFXComM.Handle  -- ^The handle to the master process
   }
 
 
@@ -82,55 +92,86 @@ withHandle::Config          -- ^The configuration of the Reader thread
           ->(Handle->IO a)  -- ^The IO action
           ->IO a
 withHandle config serialH loggerH masterH io = do
-  tid <- forkChild $ readerThread $ IHandle loggerH serialH masterH
+  tid <- forkChild $ readerThread $ Environment loggerH serialH masterH
   x <- io $ Handle
-  killThread tid
+  killThread tid -- Not nice, but I did not come to think of any easier way for now (TOFIX)
   return x
 
+
+--
+-- RFXCom Reader Monad
+--
+
+-- |The monad that the RFXCom Reader executes under
+newtype RFXComReader m a = RFXComReader (ReaderT Environment (Log.LoggerT m) a)
+  deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO,
+            MonadMask, MonadCatch, MonadThrow, Log.MonadLogger)
+
+
+-- |The lift for the RFXCom Reader monad
+instance MonadTrans RFXComReader where
+  lift m = RFXComReader $ lift $ lift m
+
+
+-- |Injects the environment and runs the computations in the RFXCom Reader monad
+runRFXComReader::(Monad m) => RFXComReader m a -- ^The RFXCom Reader monad
+               -> Environment     -- ^The environment that the monad should be evaluated under
+               ->m a              -- ^The result
+runRFXComReader (RFXComReader m) env = Log.runLoggerT (runReaderT m env) (loggerH env)
 
 --
 -- The serial port reader functions
 --
 
+kkk::Environment->Message->IO()
 kkk ih msg = do
   Log._info (loggerH ih) $ "RFXCom.Control.RFXComReader.readThread: Read " ++ show msg
   (RFXComM.send $ masterH ih) $ RFXComM.Message msg
 
-koko::IHandle->Either PB.DecodingError Message->IO ()
-koko ih msg = either (return . const ()) (kkk ih) msg 
+koko::Environment->MaybeMessage->IO ()
+koko ih msg = either (return . const ()) (kkk ih) msg
 
 -- |The reader thread that reads all messages from the RFXCom device and sends them away to
 -- some handler.
-readerThread::IHandle->IO ()
-readerThread ih = do
-  Log._info (loggerH ih) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
-  processSerialPort ih (koko ih)
+readerThread::Environment
+            ->IO ()
+readerThread env = do
+  Log._info (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
+  runRFXComReader (processSerialPort env (koko env)) env
 
+serialMessageReader::(Monad m, MonadIO m, MonadMask m)=>RFXComReader (Producer ByteString (SafeT m) ) ()
+serialMessageReader = do
+  env <- ask
+  lift $ forever $ PBS.hGetSome 1 $ serialH env
 
-terminator :: (MonadIO m, MonadMask m) => Consumer (Either PB.DecodingError Message) (SafeT m) ()
-terminator = do
-  str <- await
-  liftIO $ putStrLn $ show str
-  terminator
+serialMessageParser::(Monad m, MonadIO m, MonadMask m)=>RFXComReader (Pipe ByteString MaybeMessage (SafeT m)) ()
+serialMessageParser = do
+  lift $ PP.parseForever msgParser
 
+serialMessageHandler::(Monad m, MonadIO m, MonadMask m)=>MessageHandler m
+                    ->RFXComReader (Consumer MaybeMessage (SafeT m)) ()
+serialMessageHandler handler = do
+  lift $ P.mapM_ (lift . handler)
 
-take ::  (Monad m) => Int -> Pipe a a (SafeT m) ()
-take n = do
-    replicateM_ n $ do                     -- Repeat this block 'n' times
-        x <- await                         -- 'await' a value of type 'a'
-        yield x                            -- 'yield' a value of type 'a'
-
+type MaybeMessage = Either PB.DecodingError Message
+type MessageHandler m = MaybeMessage->m ()
 
 -- |Run the pipe from RFXCom to us
 processSerialPort ::
-     (MonadIO m, MonadMask m)
-  => IHandle->((Either PB.DecodingError Message) -> m ()) -- ^The message handler function
-  -> m () -- ^The result of the pipe execution session
-processSerialPort ih handler =
-  runEffect . runSafeP $ do
+     (Monad m, MonadIO m, MonadMask m)
+  => Environment
+  -> MessageHandler m -- ^The message handler function
+  -> RFXComReader m () -- ^The result of the pipe execution session
+processSerialPort ih handler = do
+  env <- ask
+  lift $ runEffect . runSafeP $ do
 
-    forever $ PBS.hGetSome 1 $ serialH ih
-    >-> PP.parseForever msgParser
---    >-> RFXCom.Control.RFXComReader.take 10000
-    >-> P.mapM_ (lift . handler)
---    >-> terminator
+    runRFXComReader (serialMessageReader) env
+    >->
+    runRFXComReader (serialMessageParser) env
+    >->
+    runRFXComReader (serialMessageHandler handler) env
+    
+--    forever $ PBS.hGetSome 1 $ serialH ih
+--    >-> PP.parseForever msgParser
+--    >-> P.mapM_ (lift . handler)

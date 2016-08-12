@@ -1,10 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
---
--- Not needed anymore!(?)
---
---{-# LANGUAGE StandaloneDeriving #-}
---{-# LANGUAGE FlexibleContexts #-}
---{-# LANGUAGE UndecidableInstances #-}
 
 -- |This module holds the control process for writing messages to the RFXCom device
 --
@@ -15,38 +9,32 @@
 module RFXCom.Control.RFXComWriter (
   Handle(..),
   Config(..),
-  RFXCom.Control.RFXComWriter.Message(..),
+  Message(..),
   defaultConfig,
   withHandle
   ) where
 
 --
--- Import section
+-- External import section
 --
 import qualified System.IO                       as SIO
 
 import           Control.Concurrent.MVar         (MVar, newEmptyMVar, newMVar,
                                                   putMVar, takeMVar)
+
+import           Control.Monad.Catch             (MonadCatch, MonadMask,
+                                                  MonadThrow)
 import           Control.Monad.Reader            (MonadReader (..),
                                                   ReaderT (..), ask, runReaderT)
-import           Control.Monad.State             (MonadState (..),
-                                                  StateT (..), get, put, evalStateT)
-import           Control.Monad.Catch             (MonadMask, MonadCatch, MonadThrow)
+import           Control.Monad.State             (MonadState (..), StateT (..),
+                                                  evalStateT, get, put)
 
 import           Pipes
-import qualified Pipes.Binary                    as PB (DecodingError (..),
-                                                        decodeGet)
-import qualified Pipes.ByteString                as PBS (fromLazy, hGetSome,
-                                                         toHandle)
-import qualified Pipes.Parse                     as PP
-import qualified Pipes.Prelude                   as P (mapM, mapM_, repeatM)
+import qualified Pipes.ByteString                as PBS (toHandle)
 import           Pipes.Safe
 
-
-import           Data.Binary.Put                 (runPut)
-import           Data.Binary.Put                 (Put, putWord8)
-import           Data.ByteString                 (ByteString, concat, unpack)
-import qualified Data.ByteString.Lazy            as BL
+import           Data.Binary.Put                 (Put, putWord8, runPut)
+import           Data.ByteString                 (ByteString, unpack)
 import           Data.Word                       (Word8)
 
 --
@@ -55,11 +43,11 @@ import           Data.Word                       (Word8)
 import qualified RFXCom.Message.Base             as B (Message (..))
 import qualified RFXCom.Message.BaseMessage      as BM (RFXComMessage (..))
 import           RFXCom.Message.Decoder          (msgParser)
+import           RFXCom.Message.Encoder          (msgEncoder)
 import qualified RFXCom.Message.InterfaceControl as IC (Body (..), Command (..))
+
 import           RFXCom.System.Concurrent        (forkChild)
 import qualified RFXCom.System.Log               as Log
-
-import           RFXCom.Message.Encoder          (msgEncoder)
 
 -- |The configuration of the RFXCom writer process settings
 data Config = Config
@@ -89,7 +77,11 @@ data Environment = Environment {
 -- |Performs an IO action with the RFXCom Writer. Note that for each withHandle
 -- a new RFXCom Writer thread will be started. There should only be one within
 -- the application (TOFIX)
-withHandle::Config->SIO.Handle->Log.Handle->(Handle->IO a)->IO a
+withHandle::Config
+          ->SIO.Handle
+          ->Log.Handle
+          ->(Handle->IO a)
+          ->IO a
 withHandle config serialH loggerH io = do
   env <- Environment loggerH serialH <$> newEmptyMVar
   tid <- forkChild $ writerThread env
@@ -116,9 +108,9 @@ stopWriterThread mvar = do
 -- |The RFXCom Writer bootstrap thread that initializes and runs the RFXCOM Writer.
 writerThread::Environment
             ->IO ()
-writerThread ih = do
-  Log._info (loggerH ih) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
-  runRFXComWriter processSerialPortWriter ih 1
+writerThread env = do
+  Log._info (loggerH env) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
+  runRFXComWriter processSerialPortWriter env 1
 
 --
 -- RFXCom Writer Monad
@@ -144,7 +136,7 @@ runRFXComWriter (RFXComWriter m) env state = Log.runLoggerT (evalStateT (runRead
 
 -- |Waits for a message to arrive on the communcation channel, encode it to bytes, add message number  and injects
 -- it downstreams into the pipe.
-serialMessageProducer::(MonadIO k, MonadMask k)=>RFXComWriter (Producer ByteString (SafeT k)) ()
+serialMessageProducer::(Monad m, MonadIO m, MonadMask m)=>RFXComWriter (Producer ByteString (SafeT m)) ()
 serialMessageProducer = do
   env <- ask
   cmd <- liftIO . takeMVar $ mvar env
@@ -189,9 +181,9 @@ serialMessageProducer = do
     Stop s -> do
       liftIO $ putMVar s ()
       return ()
-      
+
 -- |Consumes bytes and sends them to the serial port.
-serialMessageSender::(MonadIO k, MonadMask k)=>RFXComWriter (Consumer ByteString (SafeT k) ) ()
+serialMessageSender::(Monad m, MonadIO m, MonadMask m)=>RFXComWriter (Consumer ByteString (SafeT m)) ()
 serialMessageSender = do
   env <- ask
   lift $ PBS.toHandle (serialH env)
