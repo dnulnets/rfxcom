@@ -29,6 +29,8 @@ import           Control.Concurrent.MVar         (MVar, newEmptyMVar, newMVar,
                                                   putMVar, takeMVar)
 import           Control.Monad.Reader            (MonadReader (..),
                                                   ReaderT (..), ask, runReaderT)
+import           Control.Monad.State             (MonadState (..),
+                                                  StateT (..), get, put, evalStateT)
 import           Control.Monad.Catch             (MonadMask, MonadCatch, MonadThrow)
 
 import           Pipes
@@ -84,33 +86,9 @@ data Environment = Environment {
   ,mvar    :: MVar (Message) -- ^The communication port to the RFXCom Writer
   }
 
---
--- RFXCom Writer
---
-
--- |The monad that the RFXCom Writer executes under
-newtype RFXComWriter m a = RFXComWriter (ReaderT Environment (Log.LoggerT m) a)
-  deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO, MonadMask, MonadCatch, MonadThrow, Log.MonadLogger)
-
-type RFXComWriterIO a = RFXComWriter IO a
-
--- |Injects the environment and runs the computations in the RFXCom Writer monad
-runRFXComWriter::RFXComWriter m a -> Environment -> m a
-runRFXComWriter (RFXComWriter m) env = Log.runLoggerT (runReaderT m env) (loggerH env)
-
---
--- Scratchpad area, to be removed
---
--- ddoit::RFXComWriter IO ()
--- ddoit = do
---   h <- ask
---   Log.info ""
---   liftIO $ putStrLn ""
---   return ()
---
-
--- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
--- a new RFXCom writer communication thread will be started.
+-- |Performs an IO action with the RFXCom Writer. Note that for each withHandle
+-- a new RFXCom Writer thread will be started. There should only be one within
+-- the application (TOFIX)
 withHandle::Config->SIO.Handle->Log.Handle->(Handle->IO a)->IO a
 withHandle config serialH loggerH io = do
   env <- Environment loggerH serialH <$> newEmptyMVar
@@ -135,48 +113,88 @@ stopWriterThread mvar = do
   putMVar mvar $ Stop s
   takeMVar s
 
--- |The writer threads that writes messages to the RFXCom device. The messages comes via a
--- communcation channel to the writer.
+-- |The RFXCom Writer bootstrap thread that initializes and runs the RFXCOM Writer.
 writerThread::Environment
             ->IO ()
 writerThread ih = do
   Log._info (loggerH ih) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
-  runRFXComWriter processSerialPortWriter ih
+  runRFXComWriter processSerialPortWriter ih 1
+
+--
+-- RFXCom Writer Monad
+--
+
+-- |The monad that the RFXCom Writer executes under
+newtype RFXComWriter m a = RFXComWriter (ReaderT Environment (StateT Word8 (Log.LoggerT m)) a)
+  deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO,
+            MonadMask, MonadCatch, MonadThrow, MonadState Word8, Log.MonadLogger)
+
+
+-- |The lift for the RFXCom Writer monad
+instance MonadTrans RFXComWriter where
+  lift m = RFXComWriter $ lift $ lift $ lift m
+
+
+-- |Injects the environment and runs the computations in the RFXCom Writer monad
+runRFXComWriter::(Monad m) => RFXComWriter m a -- ^The RFXCom Writer monad
+               -> Environment     -- ^The environment that the monad should be evaluated under
+               -> Word8           -- ^The initial state of the RFXCom Writer monad
+               ->m a              -- ^The result
+runRFXComWriter (RFXComWriter m) env state = Log.runLoggerT (evalStateT (runReaderT m env) state) (loggerH env)
 
 -- |Waits for a message to arrive on the communcation channel and then injects it into
 -- the pipe stream down towards the RFXCom device.
-dataProducer::(MonadIO k, MonadMask k)=>Environment
-            ->Word8
-            ->Producer ByteString (SafeT k) ()
-dataProducer ih seq = do
-  cmd <- liftIO $ takeMVar $ mvar ih
+serialMessageSender::(MonadIO k, MonadMask k)=>RFXComWriter (Producer ByteString (SafeT k)) ()
+serialMessageSender = do
+  env <- ask
+  cmd <- liftIO . takeMVar $ mvar env
   case cmd of
+
+    --
+    -- This is the message that resets the RFXCom Device, we also need to reset
+    -- the message sequence number counter
+    --
     Message msg@(B.InterfaceControl IC.Body {IC._cmnd=IC.Reset}) -> do
-      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
-      bs <- return $ msgEncoder 0 msg
-      liftIO $ Log._info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
-      yield $ bs
-      dataProducer ih 1
+      Log.info $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      bs <- return $ msgEncoder 0 msg -- A bit ugly ;-)
+      Log.info $ "Sending : " ++ (show (unpack bs))
+      lift . yield $ bs
+      put 1 -- We need to reset the message counter
+      serialMessageSender
+
+    --
+    -- This is the message that will be send to the RFXCom Device and increase
+    -- the message sequence number counter
+    --
     Message msg -> do
-      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      Log.info $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
+      seq <- get
       bs <- return $ msgEncoder seq msg
-      liftIO $ Log._info (loggerH ih) $ "Sending : " ++ (show (unpack bs))
-      yield $ bs
-      dataProducer ih (seq+1)
+      Log.info $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ (show (unpack bs))
+      lift . yield $ bs
+      put (seq+1) -- Take the next message number in the sequence
+      serialMessageSender
+
+    --
+    -- This is the message that flushes the serial port to the RFXCom Device
+    --
     Flush -> do
-      liftIO $ Log._info (loggerH ih) $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
-      liftIO $ SIO.hFlush $ serialH ih
-      dataProducer ih seq
+      Log.info $ "RFXCom.Control.RFXComWriter.dataProducer: Flushing the serial device"
+      liftIO $ SIO.hFlush $ serialH env
+      serialMessageSender -- We have not used the current message number so keep it
+
+    --
+    -- This is the message that stops the RFXCom Writer
+    --
     Stop s -> do
       liftIO $ putMVar s ()
       return ()
+      
 
 -- |Run the pipe stream for writing messages to the RFXCom device.
 processSerialPortWriter :: (Monad m, MonadIO m, MonadMask m) => RFXComWriter m () -- ^The result of the pipe execution session
 processSerialPortWriter = do
   env <- ask
   runEffect . runSafeP $ do
-    dataProducer env 1
+    runRFXComWriter serialMessageSender env 1
     >-> PBS.toHandle (serialH env)
-
-

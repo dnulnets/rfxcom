@@ -28,6 +28,7 @@ module RFXCom.System.Log (
 import Prelude hiding (log, error)
 import qualified System.IO as SIO
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
+import Control.Monad.State (StateT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Catch   (MonadMask, MonadCatch, MonadThrow)
 import Control.Monad.Trans.Class (MonadTrans(..))
@@ -126,3 +127,11 @@ instance (MonadLogger m) => MonadLogger (ReaderT r m) where
   debug = lift . debug
   error = lift . error
   warning = lift . warning
+
+-- |The instance of the MonadLogger class for the reader transformer.
+instance (MonadLogger m) => MonadLogger (StateT s m) where
+  info = lift . info
+  debug = lift . debug
+  error = lift . error
+  warning = lift . warning
+  
