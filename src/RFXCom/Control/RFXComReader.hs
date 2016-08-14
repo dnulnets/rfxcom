@@ -32,7 +32,6 @@ import           Control.Concurrent.MVar     (MVar, newEmptyMVar, newMVar,
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Catch         (MonadCatch, MonadMask, MonadThrow)
-import           Control.Monad.Managed       (Managed, managed, runManaged)
 import           Control.Monad.Reader        (MonadReader (..), ReaderT (..),
                                               ask, runReaderT)
 
@@ -112,6 +111,11 @@ newtype RFXComReader m a = RFXComReader (ReaderT Environment (Log.LoggerT m) a)
 instance MonadTrans RFXComReader where
   lift m = RFXComReader $ lift $ lift m
 
+-- |A type synonym for a message or decoding error
+type MaybeMessage = Either PB.DecodingError Message
+
+-- |A type synonym for a message handler
+type MessageHandler m = MaybeMessage->m ()
 
 -- |Injects the environment and runs the computations in the RFXCom Reader monad
 runRFXComReader::(Monad m) => RFXComReader m a -- ^The RFXCom Reader monad
@@ -123,55 +127,42 @@ runRFXComReader (RFXComReader m) env = Log.runLoggerT (runReaderT m env) (logger
 -- The serial port reader functions
 --
 
-kkk::Environment->Message->IO()
-kkk ih msg = do
-  Log._info (loggerH ih) $ "RFXCom.Control.RFXComReader.readThread: Read " ++ show msg
-  (RFXComM.send $ masterH ih) $ RFXComM.Message msg
-
-koko::Environment->MaybeMessage->IO ()
-koko ih msg = either (return . const ()) (kkk ih) msg
+-- |Sends an RFXCom device message to the RFXCom Master for further handling
+maybeSendMessage::(Monad m, MonadIO m, MonadMask m)=>RFXComM.Handle -- ^The RFXCom Master handle
+                ->MaybeMessage                                      -- ^The RFXCom device message
+                ->m ()
+maybeSendMessage h msg = do
+  either (return . const ()) (sendMessage h) msg
+  where
+    sendMessage h msg = do
+      liftIO $ RFXComM.send h $ RFXComM.Message msg
 
 -- |The reader thread that reads all messages from the RFXCom device and sends them away to
--- some handler.
+-- the RFXCom Master handler.
 readerThread::Environment
             ->IO ()
 readerThread env = do
   Log._info (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
-  runRFXComReader (processSerialPort env (koko env)) env
+  runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
 
-serialMessageReader::(Monad m, MonadIO m, MonadMask m)=>RFXComReader (Producer ByteString (SafeT m) ) ()
-serialMessageReader = do
+-- |The modelled effect of the producer, consumer and pipe for reading and transforming the serial
+-- byte stream to a stream of RFXCom device messages and then sending them off to a message handler
+serialMessageReader::(Monad m, MonadIO m, MonadMask m)=>MessageHandler m ->RFXComReader (Effect (SafeT m)) ()
+serialMessageReader handler = do
   env <- ask
-  lift $ forever $ PBS.hGetSome 1 $ serialH env
-
-serialMessageParser::(Monad m, MonadIO m, MonadMask m)=>RFXComReader (Pipe ByteString MaybeMessage (SafeT m)) ()
-serialMessageParser = do
-  lift $ PP.parseForever msgParser
-
-serialMessageHandler::(Monad m, MonadIO m, MonadMask m)=>MessageHandler m
-                    ->RFXComReader (Consumer MaybeMessage (SafeT m)) ()
-serialMessageHandler handler = do
-  lift $ P.mapM_ (lift . handler)
-
-type MaybeMessage = Either PB.DecodingError Message
-type MessageHandler m = MaybeMessage->m ()
+  lift $ do
+    forever $ PBS.hGetSome 1 $ serialH env
+    >->
+    PP.parseForever msgParser
+    >->
+    P.mapM_ (lift . handler)
 
 -- |Run the pipe from RFXCom to us
 processSerialPort ::
      (Monad m, MonadIO m, MonadMask m)
-  => Environment
-  -> MessageHandler m -- ^The message handler function
-  -> RFXComReader m () -- ^The result of the pipe execution session
-processSerialPort ih handler = do
+  => MessageHandler m -- ^The RFXCom device message handler function
+  -> RFXComReader m ()
+processSerialPort handler = do
   env <- ask
   lift $ runEffect . runSafeP $ do
-
-    runRFXComReader (serialMessageReader) env
-    >->
-    runRFXComReader (serialMessageParser) env
-    >->
-    runRFXComReader (serialMessageHandler handler) env
-    
---    forever $ PBS.hGetSome 1 $ serialH ih
---    >-> PP.parseForever msgParser
---    >-> P.mapM_ (lift . handler)
+    runRFXComReader (serialMessageReader handler) env

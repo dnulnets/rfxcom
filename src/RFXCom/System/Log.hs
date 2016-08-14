@@ -77,7 +77,7 @@ newtype LoggerT m a = LoggerT ((ReaderT Handle m) a)
 
 -- |The concrete implementation of the MonadTrans class for the logger transformer
 instance MonadTrans LoggerT where
-  lift m = LoggerT (lift m)
+  lift m = LoggerT $ lift m
 
   
 -- |The concrete implementation of the MonadLogger class for the logger transformer
