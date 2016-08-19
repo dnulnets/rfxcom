@@ -313,16 +313,23 @@ executeStateMachine st signal = do
   return ()
 
 
--- |The writer threads that controls messages to and from the RFXCom device.
+-- |The master control process that runs in the RFXComMaster monad. It is the central control process of the
+-- application.
 processMasterHandler::(Monad m, MonadIO m)=>RFXComMaster m ()
 processMasterHandler = do
-  env <- ask
   state <- get
   if (machineState state) ==  Start
     then do
+      --
+      -- Bootstrap for the state machine, simulate a timeout in the Start state
+      --
       executeStateMachine Start Timeout
       processMasterHandler
     else do
+      --
+      -- Wait for an incoming command
+      --
+      env <- ask
       cmd <- liftIO $ takeMVar $ mvar env
       case cmd of
         Stop s -> do
@@ -334,7 +341,7 @@ processMasterHandler = do
           processMasterHandler
 
 
--- |Spawns off the master handler
+-- |The master thread that runs the master control process
 masterThread::Environment -- ^The environment that we must execute under
             ->IO ()
 masterThread env = do
