@@ -19,11 +19,9 @@ module RFXCom.Control.RFXComWriter (
 --
 import qualified System.IO                       as SIO
 
-import           Control.Concurrent.MVar         (MVar, newEmptyMVar, newMVar,
+import           Control.Concurrent.MVar         (MVar, newEmptyMVar,
                                                   putMVar, takeMVar)
 
-import           Control.Monad.Catch             (MonadCatch, MonadMask,
-                                                  MonadThrow)
 import           Control.Monad.Reader            (MonadReader (..),
                                                   ReaderT (..), ask, runReaderT)
 import           Control.Monad.State             (MonadState (..), StateT (..),
@@ -42,7 +40,6 @@ import           Data.Word                       (Word8)
 --
 import qualified RFXCom.Message.Base             as B (Message (..))
 import qualified RFXCom.Message.BaseMessage      as BM (RFXComMessage (..))
-import           RFXCom.Message.Decoder          (msgParser)
 import           RFXCom.Message.Encoder          (msgEncoder)
 import qualified RFXCom.Message.InterfaceControl as IC (Body (..), Command (..))
 
@@ -92,9 +89,32 @@ withHandle config serialH loggerH io = do
     sendMessage ih s = do
       putMVar (mvar ih) $ s
 
+--
+-- RFXCom Writer Monad
+--
+
+-- |The monad that the RFXCom Writer executes under. The reader holds the environment and
+-- the state hoolds the current message counter.
+newtype RFXComWriter m a = RFXComWriter (ReaderT Environment (StateT Word8 (Log.LoggerT m)) a)
+  deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO,
+            MonadMask, MonadCatch, MonadThrow, MonadState Word8, Log.MonadLogger)
+
+
+-- |The lift for the RFXCom Writer monad
+instance MonadTrans RFXComWriter where
+  lift m = RFXComWriter $ lift $ lift $ lift m
+
+
+-- |Injects the environment and runs the computations in the RFXCom Writer monad
+runRFXComWriter::(Monad m) => RFXComWriter m a -- ^The RFXCom Writer monad
+               -> Environment     -- ^The environment that the monad should be evaluated under
+               -> Word8           -- ^The initial state of the RFXCom Writer monad
+               ->m a              -- ^The result
+runRFXComWriter (RFXComWriter m) env state = Log.runLoggerT (evalStateT (runReaderT m env) state) (loggerH env)
+
 
 --
--- The serial port writer functions
+-- Thread handling
 --
 
 -- |Stops the RFXCom Writer by sending the stop message
@@ -113,33 +133,15 @@ writerThread env = do
   runRFXComWriter processSerialPortWriter env 1
 
 --
--- RFXCom Writer Monad
+-- Pipe handling
 --
-
--- |The monad that the RFXCom Writer executes under
-newtype RFXComWriter m a = RFXComWriter (ReaderT Environment (StateT Word8 (Log.LoggerT m)) a)
-  deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO,
-            MonadMask, MonadCatch, MonadThrow, MonadState Word8, Log.MonadLogger)
-
-
--- |The lift for the RFXCom Writer monad
-instance MonadTrans RFXComWriter where
-  lift m = RFXComWriter $ lift $ lift $ lift m
-
-
--- |Injects the environment and runs the computations in the RFXCom Writer monad
-runRFXComWriter::(Monad m) => RFXComWriter m a -- ^The RFXCom Writer monad
-               -> Environment     -- ^The environment that the monad should be evaluated under
-               -> Word8           -- ^The initial state of the RFXCom Writer monad
-               ->m a              -- ^The result
-runRFXComWriter (RFXComWriter m) env state = Log.runLoggerT (evalStateT (runReaderT m env) state) (loggerH env)
 
 -- |Waits for a message to arrive on the communcation channel, encode it to bytes, add message number  and injects
 -- it downstreams into the pipe.
 serialMessageProducer::(Monad m, MonadIO m, MonadMask m)=>RFXComWriter (Producer ByteString (SafeT m)) ()
 serialMessageProducer = do
   env <- ask
-  cmd <- liftIO . takeMVar $ mvar env
+  cmd <- liftIO . takeMVar $ (mvar env)
   case cmd of
 
     --
@@ -150,12 +152,12 @@ serialMessageProducer = do
       Log.info $ "RFXCom.Control.RFXComWriter.dataProducer: Sending " ++ show msg
       bs <- return $ msgEncoder 0 msg -- A bit ugly ;-)
       Log.info $ "Sending : " ++ (show (unpack bs))
-      lift . yield $ bs
+      lift $ yield $ bs
       put 1 -- We need to reset the message counter
       serialMessageProducer
 
     --
-    -- This is the message that will be send to the RFXCom Device and increase
+    -- This is any ohter RFXCom device message that will be sent to the RFXCom Device and increase
     -- the message sequence number counter
     --
     Message msg -> do
@@ -188,6 +190,7 @@ serialMessageSender = do
   env <- ask
   lift $ PBS.toHandle (serialH env)
 
+
 -- |Run the pipe stream for writing messages to the RFXCom device.
 processSerialPortWriter :: (Monad m, MonadIO m, MonadMask m) => RFXComWriter m () -- ^The result of the pipe execution session
 processSerialPortWriter = do
@@ -195,4 +198,4 @@ processSerialPortWriter = do
   runEffect . runSafeP $ do
     runRFXComWriter (serialMessageProducer) env 1
     >->
-    runRFXComWriter (serialMessageSender) env 1
+    PBS.toHandle (serialH env)

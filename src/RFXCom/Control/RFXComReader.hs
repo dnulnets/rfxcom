@@ -17,26 +17,16 @@ module RFXCom.Control.RFXComReader (
 --
 -- Import section
 --
-import           System.Hardware.Serialport  (CommSpeed (..), Parity (..),
-                                              SerialPortSettings (..),
-                                              StopBits (..),
-                                              defaultSerialSettings,
-                                              hOpenSerial)
+
 import qualified System.IO                   as SIO
 
 import           Control.Concurrent          (killThread)
-import           Control.Concurrent.Chan     (Chan, newChan, readChan,
-                                              writeChan)
-import           Control.Concurrent.MVar     (MVar, newEmptyMVar, newMVar,
-                                              putMVar, takeMVar)
-import           Control.Exception
+import           Control.Concurrent.MVar     (MVar)
 import           Control.Monad
-import           Control.Monad.Catch         (MonadCatch, MonadMask, MonadThrow)
 import           Control.Monad.Reader        (MonadReader (..), ReaderT (..),
                                               ask, runReaderT)
 
 import           Pipes
-
 import qualified Pipes.Binary                as PB (DecodingError (..),
                                                     decodeGet)
 import qualified Pipes.ByteString            as PBS (fromLazy, hGetSome,
@@ -55,12 +45,13 @@ import qualified RFXCom.Control.RFXComMaster as RFXComM (Handle (..),
                                                          Message (..))
 import           RFXCom.Message.Base         (Message)
 import           RFXCom.Message.Decoder      (msgParser)
+
 import           RFXCom.System.Concurrent    (forkChild, waitForChildren)
 import           RFXCom.System.Exception     (ResourceException (..))
 import qualified RFXCom.System.Log           as Log (Handle (..), LoggerT (..),
-                                                     MonadLogger (..), _debug,
-                                                     _error, _info, _warning,
-                                                     runLoggerT)
+                                                     MonadLogger (..),
+                                                     runLoggerT, _debug, _error,
+                                                     _info, _warning)
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -104,7 +95,7 @@ withHandle config serialH loggerH masterH io = do
 -- |The monad that the RFXCom Reader executes under
 newtype RFXComReader m a = RFXComReader (ReaderT Environment (Log.LoggerT m) a)
   deriving (Functor, Applicative, Monad, MonadReader Environment, MonadIO,
-            MonadMask, MonadCatch, MonadThrow, Log.MonadLogger)
+            Log.MonadLogger)
 
 
 -- |The lift for the RFXCom Reader monad
@@ -123,9 +114,14 @@ runRFXComReader::(Monad m) => RFXComReader m a -- ^The RFXCom Reader monad
                ->m a              -- ^The result
 runRFXComReader (RFXComReader m) env = Log.runLoggerT (runReaderT m env) (loggerH env)
 
---
--- The serial port reader functions
---
+
+-- |The reader thread that reads all messages from the RFXCom device and sends them away to
+-- the RFXCom Master handler by using the 'maybeSendMessage' function.
+readerThread::Environment
+            ->IO ()
+readerThread env = do
+  Log._info (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
+  runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
 
 -- |Sends an RFXCom device message to the RFXCom Master for further handling
 maybeSendMessage::(Monad m, MonadIO m, MonadMask m)=>RFXComM.Handle -- ^The RFXCom Master handle
@@ -136,14 +132,6 @@ maybeSendMessage h msg = do
   where
     sendMessage h msg = do
       liftIO $ RFXComM.send h $ RFXComM.Message msg
-
--- |The reader thread that reads all messages from the RFXCom device and sends them away to
--- the RFXCom Master handler.
-readerThread::Environment
-            ->IO ()
-readerThread env = do
-  Log._info (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
-  runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
 
 -- |The modelled effect of the producer, consumer and pipe for reading and transforming the serial
 -- byte stream to a stream of RFXCom device messages and then sending them off to a message handler
