@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |This module holds the control processes for reading the message from the RFXCom
@@ -50,8 +51,8 @@ import           RFXCom.System.Concurrent    (forkChild, waitForChildren)
 import           RFXCom.System.Exception     (ResourceException (..))
 import qualified RFXCom.System.Log           as Log (Handle (..), LoggerT (..),
                                                      MonadLogger (..),
-                                                     runLoggerT, _debug, _error,
-                                                     _info, _warning)
+                                                     runLoggerT, debugH, errorH,
+                                                     infoH, warningH)
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -120,7 +121,7 @@ runRFXComReader (RFXComReader m) env = Log.runLoggerT (runReaderT m env) (logger
 readerThread::Environment
             ->IO ()
 readerThread env = do
-  Log._info (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
+  Log.infoH (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
   runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
 
 -- |Sends an RFXCom device message to the RFXCom Master for further handling

@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+
 -- |This is the RFXCom Message base file that contains the RFXCom message data structures.
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06
@@ -42,19 +43,17 @@ class RFXComMessage a where
 
 -- |The RFXCom message header that is the first sequence of bytes in every message.
 data Header = Header
-  { _size           :: !Word8 -- ^The size of the message
-  , _type           :: !Word8 -- ^The type of the message
-  , _subtype        :: !Word8 -- ^The subtype of the message
+  { _size           :: !Word8  -- ^The size of the message
+  , _type           :: !Word8  -- ^The type of the message
+  , _subtype        :: !Word8  -- ^The subtype of the message
   , _sequenceNumber :: !Word8} -- ^The sequence number of the message
   deriving (Show)
 
---
--- Set of functions that helps in parsing the messages
---
 
 --
 -- The base message (raw data message) functionality
 --
+
 
 -- |The generic message type when the message is unknown, not handled by this library
 -- or no specific message type is needed. It just contains the raw message body.

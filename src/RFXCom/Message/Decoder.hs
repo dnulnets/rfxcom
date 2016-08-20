@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- |This application converts rfxcom messages to MQTT messages on a message bus
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06

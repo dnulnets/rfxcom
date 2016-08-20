@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- |This application converts rfxcom messages to and from MQTT messages on an
 -- MQTT message broker.
 --
@@ -17,37 +19,17 @@ import           System.Hardware.Serialport   (CommSpeed (..), Parity (..),
                                                hOpenSerial)
 import           System.IO
 
-import           Control.Concurrent.Chan      (Chan, newChan, readChan,
-                                               writeChan)
-import           Control.Concurrent.MVar      (MVar, newEmptyMVar, newMVar,
-                                               putMVar, takeMVar)
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Managed        (Managed, managed, runManaged)
-
-import           Pipes
-
-import qualified Pipes.Binary                 as PB (DecodingError (..),
-                                                     decodeGet)
-import qualified Pipes.ByteString             as PBS (fromLazy, hGetSome,
-                                                      toHandle)
-import qualified Pipes.Parse                  as PP
-import qualified Pipes.Prelude                as P (mapM_, repeatM)
-import           Pipes.Safe
-
-import           Data.ByteString              (ByteString)
-import           Data.Word                    (Word8)
 
 --
 -- Internal import section
 --
-import           RFXCom.Message.Base          (Message)
-import           RFXCom.Message.Decoder       (msgParser)
-
-import           RFXCom.System.Concurrent     (forkChild, waitForChildren)
+import           RFXCom.System.Concurrent     (waitForChildren)
 import           RFXCom.System.Exception      (ResourceException (..))
-import qualified RFXCom.System.Log            as Log (Handle (..), debug, error,
-                                                      info, warning)
+
 import           RFXCom.System.Log.FileHandle as LogI (Config (..),
                                                        defaultConfig,
                                                        withHandle)
@@ -72,13 +54,13 @@ openMySerial = hOpenSerial "/dev/ttyUSB0" defaultSerialSettings { commSpeed = CS
                                                                   stopb = One,
                                                                   parity = NoParity,
                                                                   timeout = 10}
-
-withHandle::(Handle->IO a)->IO a
+-- |The with handler for the serial port functionality
+withHandle::(Handle->IO a)  -- ^The IO computation
+          ->IO a            -- ^The result of the IO computation
 withHandle = Control.Exception.bracket openMySerial hClose
 
---
--- Main to test the pipe sequence
---
+-- |Main function that starts up the entire application and does the dependancy injection
+-- to stich it all together.
 main :: IO ()
 main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceexception: " ++ s) $ do
 
@@ -90,16 +72,15 @@ main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceex
     loggerH  <- managed $ LogI.withHandle LogI.defaultConfig
     rfxWH    <- managed $ RFXComW.withHandle RFXComW.defaultConfig serialH loggerH
     rfxMH    <- managed $ RFXComM.withHandle RFXComM.defaultConfig loggerH rfxWH
-    rfxWR    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH rfxMH
+    rfxRH    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH rfxMH
 
-    liftIO $ quit loggerH
+    liftIO $ quit
 
   waitForChildren
 
--- |Returns when the userpresses 'q'
-quit::Log.Handle -- ^The logger
-    ->IO ()
-quit h = do
+-- |Returns when the user presses 'q'
+quit::IO ()
+quit = do
   hSetBuffering stdin NoBuffering
   loop
   where

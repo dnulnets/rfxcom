@@ -1,6 +1,7 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# OPTIONS_GHC -fno-cse #-}
 {-# OPTIONS_GHC -fno-full-laziness #-}
+
 -- |This module contains global functions and data structures for dealing with
 -- concurrency within RFXCom.
 --
@@ -32,7 +33,7 @@ import           System.IO.Unsafe        (unsafePerformIO)
 -- |Éxecutes an IO action after a certain amount of time
 executeAfterDelay :: Int    -- ^The delay in microseconds 
                   -> IO ()  -- ^The IO action to execute after the delay
-                  -> IO ThreadId
+                  -> IO ThreadId -- ^The threadId of the started thread
 executeAfterDelay t f = forkIO (threadDelay t >> f)
 
 -- |Holds a list of all threads in this application. This list is not made public outside
@@ -46,7 +47,6 @@ threadChildren = unsafePerformIO (newMVar [])
 waitForChildren::IO ()
 waitForChildren = do
   cs <- takeMVar threadChildren
-  -- putStrLn $ "RFXCom.System.Concurrent.waitForChildren: Waiting for " ++ show (length cs) ++ " threads to finish"
   putMVar threadChildren cs
   loop
   where
@@ -57,7 +57,6 @@ waitForChildren = do
       case cs of
         []   -> return ()
         m:ms -> do
-          -- putStrLn $ "RFXCom.System.Concurrent: Waiting for " ++ show (fst m)
           putMVar threadChildren ms
           takeMVar $ snd m
           loop
@@ -69,11 +68,6 @@ forkChild::IO ()       -- ^The IO action to be executed
 forkChild io = do
   mvar <- newEmptyMVar
   childs <- takeMVar threadChildren
-  tid <- forkFinally io (\e -> do
-                            putMVar mvar ()
-                            -- tid <- myThreadId
-                            -- putStrLn $ "RFXCom.System.Concurrent.forkChild: Cleaning up for " ++ show tid ++ " Reason=(" ++ show e ++ ")"
-                        )
+  tid <- forkFinally io (\_ -> putMVar mvar ())
   putMVar threadChildren ((tid,mvar):childs)
-  -- putStrLn $ "RFXCom.System.Concurrent.forkChild: " ++ show tid ++ " forked"
   return tid

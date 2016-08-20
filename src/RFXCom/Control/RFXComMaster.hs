@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |This module holds the master control process for the RFXCom device
@@ -47,9 +48,9 @@ import           RFXCom.System.Concurrent         (executeAfterDelay, forkChild)
 import           RFXCom.System.Exception          (ResourceException (..))
 import qualified RFXCom.System.Log                as Log (Handle (..), LoggerT,
                                                           MonadLogger (..),
-                                                          runLoggerT, _debug,
-                                                          _error, _info,
-                                                          _warning)
+                                                          runLoggerT, debugH,
+                                                          errorH, infoH,
+                                                          warningH)
 
 -- |The configuration of the RFXCom master process settings
 data Config = Config
@@ -59,7 +60,8 @@ data Config = Config
 defaultConfig = Config
 
 
--- |Ugly one, ust to get deriving Show to work. I do not really need to show the MVar.
+-- |Ugly one, just to get Show to work for an MVar som we can do deriving whenever MVar is used.
+-- I do not really need to show the MVar.
 instance Show (MVar a) where
   show m = "MVar"
 
@@ -346,7 +348,7 @@ masterThread::Environment -- ^The environment that we must execute under
             ->IO ()
 masterThread env = do
 
-  Log._info (loggerH env) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
+  Log.infoH (loggerH env) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
 
   -- Run the RFXCom Master
   runRFXComMaster processMasterHandler env (State Start Nothing)

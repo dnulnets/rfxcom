@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+
 -- |This is the RFXCom Message base file that contains the RFXCom message data structure
 -- for the temperature and humidity sensor readings.
 --
@@ -16,15 +17,15 @@ module RFXCom.Message.TemperatureAndHumidity (
 -- Import section
 --
 
+import           Data.Binary                (Word8)
+import           Data.Binary.Get            (getWord16be, getWord8)
 import           Data.Bits
-import           Data.Binary     (Word8)
-import           Data.Binary.Get (getWord8, getWord16be)
 
 --
 -- Internal Import Section
 --
-import qualified RFXCom.Message.BaseMessage as BM (Header(..),
-                                   RFXComMessage(..))
+import qualified RFXCom.Message.BaseMessage as BM (Header (..),
+                                                   RFXComMessage (..))
 
 -- |The interpretation of the humidity value.
 data HumidityStatus = Normal
@@ -36,18 +37,18 @@ data HumidityStatus = Normal
 
 -- |The temperature and humidity sensor reading message.
 data Body = TemperatureAndHumidityBody
-  {_id::Integer                    -- ^The identity of the sensor
-  ,_temperature::Float             -- ^The temperature reading of the sensor
-  ,_humidity::Float                -- ^The humidity of the sensor [0-100%] RH
-  ,_humidityStatus::HumidityStatus -- ^The interpretation of the humidity value
-  ,_batteryLevel::Integer          -- ^The battery level of the sensor [0(empty)-9(full)]
-  ,_rssi::Integer}                 -- ^The signal strength of the sensor reception [0(weak)-15(strong)]
+  {_id             :: Integer        -- ^The identity of the sensor
+  ,_temperature    :: Float          -- ^The temperature reading of the sensor
+  ,_humidity       :: Float          -- ^The humidity of the sensor [0-100%] RH
+  ,_humidityStatus :: HumidityStatus -- ^The interpretation of the humidity value
+  ,_batteryLevel   :: Integer        -- ^The battery level of the sensor [0(empty)-9(full)]
+  ,_rssi           :: Integer}       -- ^The signal strength of the sensor reception [0(weak)-15(strong)]
   deriving (Show)
 
 -- |Calculate the temperature value given by the two 'Word8' values from the message
 -- to an internal representation [-128 to +128] with a 1/10th degree of accuracy.
 temperature::Word8 -- ^Most significant byte of the temperature value. Contains sign bit at the most significant bit.
-           ->Word8 -- ^Least significant byte of the temperature value. 
+           ->Word8 -- ^Least significant byte of the temperature value.
            ->Float -- ^The calculated temperature.
 temperature h l = sgn * (hv * 256.0 + lv)/10.0
   where
@@ -73,21 +74,21 @@ rssiLevel sts = fromIntegral (sts .&. 0x0f)
 
 -- |Instance definition of the temperature and humidity sensor reading message
 instance BM.RFXComMessage Body where
-  
+
   -- |The message parser for the 'TemperatureAndHumidityBody'.
   getMessage header = if BM._size header == 10 then do
-    
+
     mid <- fromIntegral <$> getWord16be
     mtemperatureH <- getWord8
     mtemperatureL <- getWord8
     mhumidity <- fromIntegral <$> getWord8
     mhumidityStatus <- humidityStatus <$> getWord8
     msensorStatus <- getWord8
-    
+
     return $ Right $ TemperatureAndHumidityBody mid (temperature mtemperatureH mtemperatureL) mhumidity mhumidityStatus (batteryLevel msensorStatus) (rssiLevel msensorStatus)
-    
+
     else do
-    
+
     return $ Left "Wrong size of the temperature and humidity sensor message, it must be ten bytes"
 
   -- |This message cannot be sent

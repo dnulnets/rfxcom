@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+
 -- |This is the RFXCom Message base file that contains the RFXCom message data structure
 -- for the interface response messages
 --
@@ -30,9 +31,9 @@ import qualified RFXCom.Message.BaseMessage as BM (Header(..),
 -- |The interface control response message body
 data Body = Body
   {
-    _subtype::Word8
-  , _cmnd::Word8
-  , _data::[Word8]
+    _subtype :: Word8
+  , _cmnd    :: Word8
+  , _data    :: [Word8]
   }
   deriving (Show)
 

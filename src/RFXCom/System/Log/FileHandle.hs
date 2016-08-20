@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- |This module contains the concrete implementation of the logger functionality
 -- to a filehandle. This logger is a thread which logs messages that comes through
 -- a Chan.
@@ -17,9 +18,9 @@ module RFXCom.System.Log.FileHandle (
 -- External Import section
 --
 import           Control.Concurrent       (ThreadId, myThreadId)
+import           Control.Concurrent.Chan  (Chan, newChan, readChan, writeChan)
 import           Control.Concurrent.MVar  (MVar, newEmptyMVar, newMVar, putMVar,
                                            takeMVar)
-import           Control.Concurrent.Chan  (newChan, readChan, writeChan, Chan)
 
 import           Control.Exception        (SomeException (..), try)
 
@@ -44,8 +45,8 @@ import qualified RFXCom.System.Log        as Log (Handle (..), Priority (..))
 
 -- |Configuration for the file handler logger.
 data Config = Config {
-  logName::String -- ^Name of the logfile, will generate <name>.log and <name>.log.<index> file
-  , maxSize::Int    -- ^The maximum size of the log file in kilobytes before rotation
+  logName   :: String   -- ^Name of the logfile, will generate <name>.log and <name>.log.<index> file
+  , maxSize :: Int    -- ^The maximum size of the log file in kilobytes before rotation
   } deriving (Show)
 
 -- |The default configuration of the logger.
@@ -126,7 +127,7 @@ loggerThread config chan = do
 
     -- This control loop handles file rotation and uses the log loop to read from the channel and log each
     -- message to the file.
-    
+
     loggerControlLoop size ix = do
       info <- try (withFile (logFileName $ logName config) AppendMode (\fh->loggerLogLoop fh size))::IO (Either SomeException Bool)
       case info of
@@ -141,10 +142,10 @@ loggerThread config chan = do
             loggerControlLoop 0 (ix+1)
           else do
             return ()
-            
+
     -- This log loop reads the  channel and calculates the file size of the log file so we know when to return from this loop
     -- to do the log rotation.
-    
+
     loggerLogLoop fh size = do
       cmd <- readChan chan
       case cmd of

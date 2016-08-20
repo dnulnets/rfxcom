@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
+
 -- |This file contains the exception definition used in this library
 --
 -- Written by Tomas Stenlund, Sundsvall, Sweden, 2016-02-06

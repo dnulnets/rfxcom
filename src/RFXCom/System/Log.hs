@@ -16,10 +16,10 @@ module RFXCom.System.Log (
   LoggerT(..),
   runLoggerT,
   
-  _info,
-  _debug,
-  _warning,
-  _error
+  infoH,
+  debugH,
+  warningH,
+  errorH
   ) where
 
 --
@@ -105,17 +105,17 @@ write p s = do
 --
 -- The old ones, to be removed
 --
-_debug::Handle->String->IO ()
-_debug = (`writeLog` Debug)
+debugH::Handle->String->IO ()
+debugH = (`writeLog` Debug)
 
-_info::Handle->String->IO ()
-_info = (`writeLog` Info)
+infoH::Handle->String->IO ()
+infoH = (`writeLog` Info)
 
-_error::Handle->String->IO ()
-_error = (`writeLog` Error)
+errorH::Handle->String->IO ()
+errorH = (`writeLog` Error)
 
-_warning::Handle->String->IO ()
-_warning = (`writeLog` Warning)
+warningH::Handle->String->IO ()
+warningH = (`writeLog` Warning)
 
 --
 -- The mtl style transformer setup for the logger

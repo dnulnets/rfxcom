@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |This module holds the control process for writing messages to the RFXCom device
@@ -129,7 +130,7 @@ stopWriterThread mvar = do
 writerThread::Environment
             ->IO ()
 writerThread env = do
-  Log._info (loggerH env) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
+  Log.infoH (loggerH env) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
   runRFXComWriter processSerialPortWriter env 1
 
 --
