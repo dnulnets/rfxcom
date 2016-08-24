@@ -190,11 +190,11 @@ executeStateMachine::(Monad m, MonadIO m)=>MachineState    -- ^The current state
 --
 executeStateMachine Init Start = do
   env <- ask
-  state <- get
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: Init"
   liftIO $ putStrLn "Resetting the RFXComDevice"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.Reset}
   scheduleTimeout 1000000
+  state <- get
   put state {machineState = ResetTheDevice}
   return ()
 
@@ -211,7 +211,8 @@ executeStateMachine ResetTheDevice (Timeout tid) = do
   liftIO $ putStrLn "RFXCom Device is reset"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.GetStatus}
   scheduleTimeout 1000000
-  put state {machineState = WaitForStatusFromTheDevice}
+  state2 <- get
+  put state2 {machineState = WaitForStatusFromTheDevice}
   return ()
 
 --
@@ -228,7 +229,8 @@ executeStateMachine WaitForStatusFromTheDevice msg@(Message (MB.InterfaceRespons
   liftIO $ putStrLn "RFXCom Device status is ok"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.Start}
   scheduleTimeout 1000000
-  put state {machineState = WaitForStartFromTheDevice}
+  state2 <- get
+  put state2 {machineState = WaitForStartFromTheDevice}
   return ()
 
 --
@@ -268,7 +270,8 @@ executeStateMachine WaitForStartFromTheDevice  msg@(Message (MB.InterfaceRespons
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   liftIO $ putStrLn "RFXCom Device started"
   cancelTimeout
-  put state {machineState = WaitForMessage}
+  state2 <- get
+  put state2 {machineState = WaitForMessage}
   return ()
 
 --
@@ -302,7 +305,6 @@ executeStateMachine WaitForStartFromTheDevice (Timeout tid) = do
 --
 executeStateMachine WaitForMessage msg = do
   env <- ask
-  state <- get
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForMessages got Message"
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   return ()

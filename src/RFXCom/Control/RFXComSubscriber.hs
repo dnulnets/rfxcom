@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# Language DataKinds, OverloadedStrings #-}
 
 -- |This module holds the MQTT Subscriber control process for the RFXCom device
 --
@@ -18,13 +19,13 @@ module RFXCom.Control.RFXComSubscriber (
 -- Import section
 --
 import qualified System.IO                        as SIO
-
+import  System.Exit (exitFailure)
 import           Control.Concurrent               (ThreadId, killThread,
-                                                   myThreadId)
+                                                   myThreadId, forkIO)
                  
 import           Control.Concurrent.MVar          (MVar, newEmptyMVar, putMVar,
                                                    takeMVar)
-import Control.Concurrent.STM (newTChanIO)
+import Control.Concurrent.STM (newTChanIO, readTChan, atomically)
 
 import           Control.Monad
 import           Control.Monad.IO.Class           (MonadIO (..))
@@ -35,7 +36,6 @@ import           Control.Monad.State              (MonadState (..), StateT (..),
                                                    evalStateT, get, put)
 import           Control.Monad.Trans.Class        (MonadTrans (..))
 import qualified Network.MQTT                     as MQTT
-
 import Data.Text (pack)
 
 --
@@ -111,6 +111,7 @@ newtype RFXComSubscriber m a = RFXComSubscriber (ReaderT Environment (Log.Logger
 instance MonadTrans RFXComSubscriber where
   lift m = RFXComSubscriber $ lift $ lift m
 
+
 -- |Injects the environment and runs the computations in the RFXCom Master monad
 runRFXComSubscriber::(Monad m) => RFXComSubscriber m a -- ^The RFXCom Subscriber monad
                    -> Environment     -- ^The environment that the monad should be evaluated under
@@ -125,19 +126,39 @@ sendToMaster::MVar RFXComM.Message -- ^The internal handle to the master thread
 sendToMaster mvar msg = do
   putMVar mvar msg
 
---
---
---
-subscriberThread::Environment
+
+-- |The thread that starts up the MQTT subscriber monad and then executes it
+subscriberThread::Environment -- ^The environment to execute under
                 ->IO ()
 subscriberThread env = do
   Log.infoH (loggerH env) "RFXCom.Control.RFXComSubscriber.subscriberThread: Subscriber thread is up and running"
   runRFXComSubscriber processMQTTSubscription env
 
+
+-- |Subscriberhandler thread
+handleMsg::MQTT.Message MQTT.PUBLISH
+         ->IO ()
+handleMsg msg = do
+  putStr "Payload:"
+  print $ MQTT.payload $ MQTT.body msg
+  return ()
+
+
+-- |The MQTT Subscriber that runs in the RFXComSubsciber monad.
 processMQTTSubscription::(Monad m, MonadIO m)=>RFXComSubscriber m ()
 processMQTTSubscription = do
   env <- ask
   Log.info "MQTT Started"
+
+  _ <- liftIO . forkIO $ do
+    qosGranted <- MQTT.subscribe (mqtt env) [("rfxcom"::MQTT.Topic, MQTT.Handshake)]
+    case qosGranted of
+      [MQTT.Handshake] -> forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
+      _ -> do
+        putStrLn $ "Wanted QoS Handshake, got " ++ show qosGranted
+        exitFailure
+
+
   terminated <- liftIO $ MQTT.run $ mqtt env
   Log.info $ "MQTT terminated " ++ show terminated
   return ()
