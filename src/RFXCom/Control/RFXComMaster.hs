@@ -20,7 +20,7 @@ module RFXCom.Control.RFXComMaster (
 --
 import qualified System.IO                        as SIO
 
-import           Control.Concurrent               (ThreadId, killThread)
+import           Control.Concurrent               (ThreadId, killThread, myThreadId)
 import           Control.Concurrent.MVar          (MVar, newEmptyMVar, putMVar,
                                                    takeMVar)
 
@@ -67,8 +67,9 @@ instance Show (MVar a) where
 
 -- |The messages to the master thread
 data Message = Message MB.Message -- ^Any incoming message from the RFXCom device
-             | Timeout          -- ^The timeout message, acts as a heartbeat
+             | Timeout ThreadId          -- ^The timeout message, acts as a heartbeat
              | Stop (MVar ())   -- ^Shuts down the mater threads
+             | Start -- ^Star the state machine
              deriving (Show)
 
 -- |The service handle to the communcation processes.
@@ -84,13 +85,13 @@ data Environment = Environment {
 
 
 -- |The state machines states
-data MachineState = Start                       -- ^The state machine has been started
-                  | ResetTheDevice              -- ^Reset the RFXCom device
+data MachineState = ResetTheDevice              -- ^Reset the RFXCom device
                   | WaitForStatusFromTheDevice  -- ^Wait for status response from the RFXCom device affter a get status command
                   | WaitForStartFromTheDevice   -- ^Wait for status response from the RFXCom device after a start device command
                   | WaitForMessage              -- ^Wait for sensor readingings from the RFXCom device
-                  | Stopped                     -- ^The state machine has been stopped
-                  | Error                       --  The state machine is in error state
+                  | Stopped                     -- ^The state machine has been stopped/finished
+                  | Error                       -- ^The state machine is in error state and ignores everything
+                  | Init                        -- ^The state machine is in init and can be started
                   deriving (Eq,Show)
 
 -- |The state of the thread
@@ -158,11 +159,15 @@ scheduleTimeout::(Monad m, MonadIO m)=>Int -- ^The timeout in microseconds
 scheduleTimeout t = do
   env <- ask
   state <- get
-  tid <- liftIO $ executeAfterDelay t $ sendToMaster (mvar env) Timeout
+  cancelTimeout
+  tid <- liftIO $ executeAfterDelay t (ding (mvar env))
   put $ state {timer = Just tid}
   Log.info $ "RFXCom.Control.RFXComMaster.scheduleTimeout: Scheduling a timeout for " ++ show t ++ " " ++ show tid
   return ()
-
+  where
+    ding mvar = do
+      tid <- myThreadId
+      sendToMaster mvar $ Timeout tid      
 
 -- |Cancels the timeout
 cancelTimeout::(Monad m, MonadIO m)=>RFXComMaster m ()
@@ -183,10 +188,10 @@ executeStateMachine::(Monad m, MonadIO m)=>MachineState    -- ^The current state
 --
 -- Send the reset command
 --
-executeStateMachine Start _ = do
+executeStateMachine Init Start = do
   env <- ask
   state <- get
-  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: Started"
+  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: Init"
   liftIO $ putStrLn "Resetting the RFXComDevice"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.Reset}
   scheduleTimeout 1000000
@@ -198,10 +203,10 @@ executeStateMachine Start _ = do
 --
 -- Flush the serial port and send the Get Status command to the RFXCom device
 --
-executeStateMachine ResetTheDevice Timeout = do
+executeStateMachine ResetTheDevice (Timeout tid) = do
   env <- ask
   state <- get
-  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: ResetTheDevice got Timeout (" ++ show (timer state) ++ ")"
+  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: ResetTheDevice got Timeout (" ++ show (timer state) ++ show tid ++ ")"
   liftIO $ RFXComW.send (writerH env) RFXComW.Flush
   liftIO $ putStrLn "RFXCom Device is reset"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.GetStatus}
@@ -220,7 +225,6 @@ executeStateMachine WaitForStatusFromTheDevice msg@(Message (MB.InterfaceRespons
   state <- get
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Message (" ++ show (timer state) ++ ")"
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
-  cancelTimeout
   liftIO $ putStrLn "RFXCom Device status is ok"
   liftIO $ RFXComW.send (writerH env) $ RFXComW.Message $ MB.InterfaceControl IC.Body {IC._cmnd = IC.Start}
   scheduleTimeout 1000000
@@ -244,11 +248,11 @@ executeStateMachine WaitForStatusFromTheDevice msg@(Message _ ) = do
 -- We did not get the response we wanted from the RFXCom device within the timeout, so we need to reset the
 -- device again and retry this
 --
-executeStateMachine WaitForStatusFromTheDevice Timeout = do
+executeStateMachine WaitForStatusFromTheDevice (Timeout tid) = do
   env <- ask
   state <- get
-  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Timeout (" ++ show (timer state) ++ ")"
-  put state {machineState = Start}
+  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStatusFromTheDevice got Timeout (" ++ show (timer state) ++ show tid ++ ")"
+  put state {machineState = Init, timer=Nothing}
   return ()
 
 --
@@ -264,7 +268,7 @@ executeStateMachine WaitForStartFromTheDevice  msg@(Message (MB.InterfaceRespons
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   liftIO $ putStrLn "RFXCom Device started"
   cancelTimeout
-  put state {machineState = WaitForMessage, timer = Nothing}
+  put state {machineState = WaitForMessage}
   return ()
 
 --
@@ -284,11 +288,11 @@ executeStateMachine WaitForStartFromTheDevice  msg@(Message _) = do
 --
 -- We got a timeout, lets restart the state machine.
 --
-executeStateMachine WaitForStartFromTheDevice Timeout = do
+executeStateMachine WaitForStartFromTheDevice (Timeout tid) = do
   env <- ask
   state <- get
-  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFromTheDevice got Timeout (" ++ show (timer state) ++ ")"
-  put state {machineState = Start}
+  Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForStartFromTheDevice got Timeout (" ++ show (timer state) ++ show tid ++ ")"
+  put state {machineState = Stopped, timer = Nothing}
   return ()
 
 --
@@ -320,14 +324,16 @@ executeStateMachine st signal = do
 processMasterHandler::(Monad m, MonadIO m)=>RFXComMaster m ()
 processMasterHandler = do
   state <- get
-  if (machineState state) ==  Start
+  if (machineState state) == Init
     then do
       --
       -- Bootstrap for the state machine, simulate a timeout in the Start state
       --
-      executeStateMachine Start Timeout
+      executeStateMachine Init Start
       processMasterHandler
+      
     else do
+    
       --
       -- Wait for an incoming command
       --
@@ -336,7 +342,7 @@ processMasterHandler = do
       case cmd of
         Stop s -> do
           liftIO $ putMVar s ()
-          put state {machineState = Stopped}
+          put $ state {machineState = Stopped}
           return ()
         _ -> do
           executeStateMachine (machineState state) cmd
@@ -351,5 +357,5 @@ masterThread env = do
   Log.infoH (loggerH env) "RFXCom.Control.RFXComMaster.masterThread: Master thread is up and running"
 
   -- Run the RFXCom Master
-  runRFXComMaster processMasterHandler env (State Start Nothing)
+  runRFXComMaster processMasterHandler env (State Init Nothing)
 

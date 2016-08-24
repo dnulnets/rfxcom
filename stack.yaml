@@ -8,7 +8,8 @@ packages:
 - '.'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: []
+extra-deps:
+ - mqtt-hs-1.0.0
 #- serialport-0.4.7
 #- bytestring-0.10.6.0
 
