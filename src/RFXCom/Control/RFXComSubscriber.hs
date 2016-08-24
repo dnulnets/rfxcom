@@ -22,12 +22,17 @@ import qualified System.IO                        as SIO
 import  System.Exit (exitFailure)
 import           Control.Concurrent               (ThreadId, killThread,
                                                    myThreadId, forkIO)
-                 
+
+
 import           Control.Concurrent.MVar          (MVar, newEmptyMVar, putMVar,
                                                    takeMVar)
+import           Control.Concurrent.Chan  (Chan, newChan, readChan, writeChan)
+
+
 import Control.Concurrent.STM (newTChanIO, readTChan, atomically)
 
 import           Control.Monad
+import Control.Monad.STM (STM(..))
 import           Control.Monad.IO.Class           (MonadIO (..))
 import           Control.Monad.Reader             (MonadReader (..),
                                                    ReaderT (..), ask,
@@ -37,6 +42,8 @@ import           Control.Monad.State              (MonadState (..), StateT (..),
 import           Control.Monad.Trans.Class        (MonadTrans (..))
 import qualified Network.MQTT                     as MQTT
 import Data.Text (pack)
+
+import Data.ByteString (ByteString)
 
 --
 -- Internal import section
@@ -67,13 +74,17 @@ data Config = Config {
 defaultConfig = Config "localhost" "rfxcom" "rfxcom" 
 
 
--- |The service handle to the communcation processes.
-data Handle = Handle
+-- |The service handle to the connection to the MQTT Broker
+data Handle = Handle {
+  publish         :: String->ByteString->IO ()
+  ,subscribe      :: String->IO ()
+  ,waitForPublish :: STM (MQTT.Message MQTT.PUBLISH)
+  }
 
 -- |The internal service handle to the communcation processes.
 data Environment = Environment {
-  mqtt :: MQTT.Config
-  ,loggerH :: Log.Handle
+  mqtt     :: MQTT.Config
+  ,loggerH  :: Log.Handle
   ,masterH :: RFXComM.Handle }
 
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
@@ -93,7 +104,7 @@ withHandle config loggerH masterH io = do
               }
   let env = Environment conf loggerH masterH
   tid <- forkChild $ subscriberThread env
-  x <- io $ Handle
+  x <- io $ Handle (_publish conf) (_subscribe conf) (_waitForPublish conf) 
   killThread tid
   return x
 
@@ -143,20 +154,33 @@ handleMsg msg = do
   print $ MQTT.payload $ MQTT.body msg
   return ()
 
+_publish::MQTT.Config->String->ByteString->IO ()
+_publish config topic raw = do
+    MQTT.publish config MQTT.NoConfirm False (MQTT.toTopic (MQTT.MqttText (pack topic))) raw
 
--- |The MQTT Subscriber that runs in the RFXComSubsciber monad.
+_subscribe::MQTT.Config->String->IO ()
+_subscribe config topic = do
+  _ <- MQTT.subscribe config [((MQTT.toTopic (MQTT.MqttText (pack topic))), MQTT.Handshake)]
+  return ()
+  
+_waitForPublish::MQTT.Config->STM (MQTT.Message MQTT.PUBLISH)
+_waitForPublish config = do
+  readTChan $ MQTT.cPublished $ config
+
+-- |The MQTT Subscriber that runs in the RFXComSubscriber monad.
 processMQTTSubscription::(Monad m, MonadIO m)=>RFXComSubscriber m ()
 processMQTTSubscription = do
   env <- ask
   Log.info "MQTT Started"
 
+
+  --
+  -- The subscription thread, waits for all incoming messages on the rfxcom tree on the MQTT broker
+  --
   _ <- liftIO . forkIO $ do
-    qosGranted <- MQTT.subscribe (mqtt env) [("rfxcom"::MQTT.Topic, MQTT.Handshake)]
-    case qosGranted of
-      [MQTT.Handshake] -> forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
-      _ -> do
-        putStrLn $ "Wanted QoS Handshake, got " ++ show qosGranted
-        exitFailure
+    MQTT.publish (mqtt env) MQTT.NoConfirm False ("rfxcom"::MQTT.Topic) "Jabadabbadata"
+    MQTT.subscribe (mqtt env) [("rfxcom/#"::MQTT.Topic, MQTT.Handshake)]
+    forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
 
 
   terminated <- liftIO $ MQTT.run $ mqtt env
