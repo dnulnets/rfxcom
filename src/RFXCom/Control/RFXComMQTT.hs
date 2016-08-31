@@ -51,9 +51,6 @@ import           Data.ByteString                  (ByteString)
 --
 -- Internal import section
 --
-import qualified RFXCom.Control.RFXComMaster      as RFXComM (Handle (..),
-                                                              Message (..))
-
 import qualified RFXCom.Message.Base              as MB
 import qualified RFXCom.Message.InterfaceControl  as IC (Body (..),
                                                          Command (..))
@@ -133,14 +130,6 @@ runRFXComSubscriber::(Monad m) => RFXComSubscriber m a -- ^The RFXCom Subscriber
                    -> Environment     -- ^The environment that the monad should be evaluated under
                    ->m a              -- ^The result
 runRFXComSubscriber (RFXComSubscriber m) env = Log.runLoggerT (runReaderT m env) (loggerH env)
-
-
--- |Sends a message to the master thread.
-sendToMaster::MVar RFXComM.Message -- ^The internal handle to the master thread
-            ->RFXComM.Message      -- ^Tĥe message to send
-            ->IO ()
-sendToMaster mvar msg = do
-  putMVar mvar msg
 
 
 -- |The thread that starts up the MQTT subscriber monad and then executes it

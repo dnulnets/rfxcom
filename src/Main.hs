@@ -49,6 +49,10 @@ import qualified RFXCom.Control.RFXComMaster  as RFXComM (Config (..),
 import qualified RFXCom.Control.RFXComMQTT    as RFXComMQ (Config (..),
                                                            defaultConfig,
                                                            withHandle)
+       
+import qualified RFXCom.Control.RFXComPublisher    as RFXComP (Config (..),
+                                                           defaultConfig,
+                                                           withHandle)
 
 -- |Open up the serial port with the correct settings for communicating with an
 -- RFXCOM device.
@@ -74,10 +78,11 @@ main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceex
 
     serialH  <- managed $ withHandle
     loggerH  <- managed $ LogI.withHandle LogI.defaultConfig
+    rfxMQH   <- managed $ RFXComMQ.withHandle RFXComMQ.defaultConfig loggerH
+    rfxPH    <- managed $ RFXComP.withHandle RFXComP.defaultConfig loggerH rfxMQH 
     rfxWH    <- managed $ RFXComW.withHandle RFXComW.defaultConfig serialH loggerH
-    rfxMH    <- managed $ RFXComM.withHandle RFXComM.defaultConfig loggerH rfxWH
+    rfxMH    <- managed $ RFXComM.withHandle RFXComM.defaultConfig loggerH rfxWH rfxPH
     rfxRH    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH rfxMH
-    rfxMQ    <- managed $ RFXComMQ.withHandle RFXComMQ.defaultConfig loggerH
     liftIO $ quit
 
   waitForChildren

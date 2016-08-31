@@ -39,6 +39,9 @@ import           Control.Monad.Trans.Class        (MonadTrans (..))
 import qualified RFXCom.Control.RFXComWriter      as RFXComW (Handle (..),
                                                               Message (..))
 
+import qualified RFXCom.Control.RFXComPublisher      as RFXComP (Handle (..),
+                                                              Message (..))
+
 import qualified          RFXCom.Message.Base              as MB
 import qualified RFXCom.Message.InterfaceControl  as IC (Body (..),
                                                          Command (..))
@@ -80,6 +83,7 @@ data Handle = Handle {
 -- |The internal service handle to the communcation processes.
 data Environment = Environment {
   loggerH   :: Log.Handle        -- ^The handle to the logger service
+  , publisherH :: RFXComP.Handle -- ^The handle to the MQTT publisher service
   , writerH :: RFXComW.Handle  -- ^The handle to the RFXCom Device Writer process
   , mvar    :: MVar Message}   -- ^The communcation mvar
 
@@ -105,10 +109,11 @@ data State = State {
 withHandle::Config          -- ^The configuration of the master threads
           ->Log.Handle      -- ^The handle to the Logger service
           ->RFXComW.Handle  -- ^The handle to the RFXCom Writer service
+          ->RFXComP.Handle  -- ^The handle to the MQTT publisher service
           ->(Handle->IO a)  -- ^The IO action to perform
           ->IO a
-withHandle config loggerH writerH io = do
-  env <- Environment loggerH writerH <$> newEmptyMVar
+withHandle config loggerH writerH publisherH io = do
+  env <- Environment loggerH publisherH writerH <$> newEmptyMVar
   tid <- forkChild $ masterThread env
   x <- io $ Handle { send = sendToMaster (mvar env)}
   s <- stopMasterThread (mvar env)

@@ -14,6 +14,7 @@ module RFXCom.Control.RFXComPublisher (
   Config(..),
   defaultConfig,
   withHandle,
+  Message(..)
   ) where
 
 --
@@ -51,9 +52,6 @@ import           Data.ByteString                  (ByteString)
 --
 -- Internal import section
 --
-import qualified RFXCom.Control.RFXComMaster      as RFXComM (Handle (..),
-                                                              Message (..))
-
 import qualified RFXCom.Message.Base              as MB
 import qualified RFXCom.Message.InterfaceControl  as IC (Body (..),
                                                          Command (..))
@@ -149,21 +147,19 @@ publisherThread::Environment -- ^The environment to execute under
                 ->IO ()
 publisherThread env = do
   Log.infoH (loggerH env) "RFXCom.Control.RFXComPublisher.publisherThread: Publisher thread is up and running"
-  runRFXComPublisher processMQTTPublisher env
+  runRFXComPublisher mqttPublisherProcess env  
+  where
 
+    mqttPublisherProcess = do
+      env <- ask
+      cmd <- liftIO . takeMVar $ (mvar env)
+      case cmd of
+      
+        Message msg -> do
+          liftIO $ MQTT.publish (mqtt env) "rfxcom" "test"
+          mqttPublisherProcess
 
--- |The MQTT Publisher that runs in the RFXComPublisher monad.
-processMQTTPublisher::(Monad m, MonadIO m)=>RFXComPublisher m ()
-processMQTTPublisher = do
-  env <- ask
-  cmd <- liftIO . takeMVar $ (mvar env)
-  case cmd of
-
-    Message msg -> do
-      liftIO $ MQTT.publish (mqtt env) "" ""
-      processMQTTPublisher
-
-    Stop s -> do
-      liftIO $ putMVar s ()
-      return ()
+        Stop s -> do
+          liftIO $ putMVar s ()
+          return ()
 
