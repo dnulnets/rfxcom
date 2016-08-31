@@ -48,7 +48,8 @@ library
                        RFXCom.Control.RFXComWriter,
                        RFXCom.Control.RFXComReader,
                        RFXCom.Control.RFXComMaster,
-                       RFXCom.Control.RFXComSubscriber,
+                       RFXCom.Control.RFXComMQTT,
+                       RFXCom.Control.RFXComPublisher,
                        RFXCom.Message.Encoder,
                        RFXCom.Message.InterfaceControl,
                        RFXCom.Message.InterfaceResponse
@@ -68,7 +69,8 @@ executable rfxcom
                        RFXCom.Control.RFXComWriter,
                        RFXCom.Control.RFXComReader,
                        RFXCom.Control.RFXComMaster,
-                       RFXCom.Control.RFXComSubscriber,
+                       RFXCom.Control.RFXComMQTT,
+                       RFXCom.Control.RFXComPublisher,
                        RFXCom.Message.Encoder,
                        RFXCom.Message.InterfaceControl,
                        RFXCom.Message.InterfaceResponse

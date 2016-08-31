@@ -1,6 +1,7 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# Language DataKinds, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 -- |This module holds the MQTT Subscriber control process for the RFXCom device
 --
@@ -8,7 +9,7 @@
 -- Copyright (c) 2017, Sundsvall, Sweden.
 -- See LICENSE file.
 --
-module RFXCom.Control.RFXComSubscriber (
+module RFXCom.Control.RFXComMQTT (
   Handle(..),
   Config(..),
   defaultConfig,
@@ -18,32 +19,34 @@ module RFXCom.Control.RFXComSubscriber (
 --
 -- Import section
 --
+import           Control.Concurrent               (ThreadId, forkIO, killThread,
+                                                   myThreadId)
+import           System.Exit                      (exitFailure)
 import qualified System.IO                        as SIO
-import  System.Exit (exitFailure)
-import           Control.Concurrent               (ThreadId, killThread,
-                                                   myThreadId, forkIO)
 
 
+import           Control.Concurrent.Chan          (Chan, newChan, readChan,
+                                                   writeChan)
 import           Control.Concurrent.MVar          (MVar, newEmptyMVar, putMVar,
                                                    takeMVar)
-import           Control.Concurrent.Chan  (Chan, newChan, readChan, writeChan)
 
 
-import Control.Concurrent.STM (newTChanIO, readTChan, atomically)
+import           Control.Concurrent.STM           (atomically, newTChanIO,
+                                                   readTChan)
 
 import           Control.Monad
-import Control.Monad.STM (STM(..))
 import           Control.Monad.IO.Class           (MonadIO (..))
 import           Control.Monad.Reader             (MonadReader (..),
                                                    ReaderT (..), ask,
                                                    runReaderT)
 import           Control.Monad.State              (MonadState (..), StateT (..),
                                                    evalStateT, get, put)
+import           Control.Monad.STM                (STM (..))
 import           Control.Monad.Trans.Class        (MonadTrans (..))
+import           Data.Text                        (pack)
 import qualified Network.MQTT                     as MQTT
-import Data.Text (pack)
 
-import Data.ByteString (ByteString)
+import           Data.ByteString                  (ByteString)
 
 --
 -- Internal import section
@@ -63,38 +66,39 @@ import qualified RFXCom.System.Log                as Log (Handle (..), LoggerT,
                                                           debugH, errorH, infoH,
                                                           runLoggerT, warningH)
 
--- |The configuration of the RFXCom master process settings
+-- |The configuration of the RFXCom MQTT process
 data Config = Config {
-  host      :: String
-  ,username :: String
-  ,password :: String
+  host      :: String  -- ^The hostname of the MQTT broker
+  ,username :: String  -- ^The username to use when logging into the MQTT broker
+  ,password :: String  -- ^The password to use when logging into the MQTT broker
   }
 
--- |Default RFXCom master process setting
-defaultConfig = Config "localhost" "rfxcom" "rfxcom" 
+-- |Default RFXCom MQTT configuration
+defaultConfig = Config "localhost" "rfxcom" "rfxcom"
 
 
--- |The service handle to the connection to the MQTT Broker
+-- |The service handle to the MQTT Broker
 data Handle = Handle {
-  publish         :: String->ByteString->IO ()
-  ,subscribe      :: String->IO ()
+  publish         :: String      -- ^The topic
+                  ->ByteString   -- ^The message
+                  ->IO ()
+  ,subscribe      :: String      -- ^The topic
+                  ->IO ()
   ,waitForPublish :: STM (MQTT.Message MQTT.PUBLISH)
   }
 
 -- |The internal service handle to the communcation processes.
 data Environment = Environment {
   mqtt     :: MQTT.Config
-  ,loggerH  :: Log.Handle
-  ,masterH :: RFXComM.Handle }
+  ,loggerH :: Log.Handle }
 
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
 -- a new RFXCom writer communication thread will be started.
 withHandle::Config          -- ^The configuration of the master threads
           ->Log.Handle      -- ^The handle to the Logger service
-          ->RFXComM.Handle  -- ^The handle to the RFXCom Writer service
           ->(Handle->IO a)  -- ^The IO action to perform
           ->IO a
-withHandle config loggerH masterH io = do
+withHandle config loggerH io = do
   cmds <- MQTT.mkCommands
   pubChan <- newTChanIO
   let conf = (MQTT.defaultConfig cmds pubChan)
@@ -102,11 +106,12 @@ withHandle config loggerH masterH io = do
               , MQTT.cPassword = Just $ pack $ password config
               , MQTT.cHost = host config
               }
-  let env = Environment conf loggerH masterH
+  let env = Environment conf loggerH
   tid <- forkChild $ subscriberThread env
-  x <- io $ Handle (_publish conf) (_subscribe conf) (_waitForPublish conf) 
+  x <- io $ Handle (_publish conf) (_subscribe conf) (_waitForPublish conf)
   killThread tid
   return x
+
 
 --
 -- RFXCom Master Monad
@@ -162,7 +167,7 @@ _subscribe::MQTT.Config->String->IO ()
 _subscribe config topic = do
   _ <- MQTT.subscribe config [((MQTT.toTopic (MQTT.MqttText (pack topic))), MQTT.Handshake)]
   return ()
-  
+
 _waitForPublish::MQTT.Config->STM (MQTT.Message MQTT.PUBLISH)
 _waitForPublish config = do
   readTChan $ MQTT.cPublished $ config

@@ -30,7 +30,7 @@ import           Control.Monad.Managed        (Managed, managed, runManaged)
 import           RFXCom.System.Concurrent     (waitForChildren)
 import           RFXCom.System.Exception      (ResourceException (..))
 
-import           RFXCom.System.Log.FileHandle as LogI (Config (..),
+import qualified RFXCom.System.Log.FileHandle as LogI (Config (..),
                                                        defaultConfig,
                                                        withHandle)
 
@@ -46,10 +46,10 @@ import qualified RFXCom.Control.RFXComMaster  as RFXComM (Config (..),
                                                           defaultConfig,
                                                           withHandle)
 
-import qualified RFXCom.Control.RFXComSubscriber as RFXComS (Config(..),
-                                                             defaultConfig,
-                                                             withHandle)
-       
+import qualified RFXCom.Control.RFXComMQTT    as RFXComMQ (Config (..),
+                                                           defaultConfig,
+                                                           withHandle)
+
 -- |Open up the serial port with the correct settings for communicating with an
 -- RFXCOM device.
 openMySerial :: IO Handle -- ^The serial port handle
@@ -72,12 +72,12 @@ main = Control.Exception.handle (\(ResourceException s)-> putStrLn $ "Resourceex
 
   runManaged $ do
 
-    serialH  <- managed $ Main.withHandle
+    serialH  <- managed $ withHandle
     loggerH  <- managed $ LogI.withHandle LogI.defaultConfig
     rfxWH    <- managed $ RFXComW.withHandle RFXComW.defaultConfig serialH loggerH
     rfxMH    <- managed $ RFXComM.withHandle RFXComM.defaultConfig loggerH rfxWH
     rfxRH    <- managed $ RFXComR.withHandle RFXComR.defaultConfig serialH loggerH rfxMH
-    rfxSH    <- managed $ RFXComS.withHandle RFXComS.defaultConfig loggerH rfxMH
+    rfxMQ    <- managed $ RFXComMQ.withHandle RFXComMQ.defaultConfig loggerH
     liftIO $ quit
 
   waitForChildren
