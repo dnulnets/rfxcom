@@ -115,25 +115,6 @@ runRFXComWriter (RFXComWriter m) env state = Log.runLoggerT (evalStateT (runRead
 
 
 --
--- Thread handling
---
-
--- |Stops the RFXCom Writer by sending the stop message
-stopWriterThread::MVar Message -- ^The destination for the message
-                -> IO ()
-stopWriterThread mvar = do
-  s<-newEmptyMVar
-  putMVar mvar $ Stop s
-  takeMVar s
-
--- |The RFXCom Writer bootstrap thread that initializes and runs the RFXCOM Writer.
-writerThread::Environment
-            ->IO ()
-writerThread env = do
-  Log.infoH (loggerH env) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
-  runRFXComWriter processSerialPortWriter env 1
-
---
 -- Pipe handling
 --
 
@@ -185,18 +166,32 @@ serialMessageProducer = do
       liftIO $ putMVar s ()
       return ()
 
--- |Consumes bytes and sends them to the serial port.
-serialMessageSender::(Monad m, MonadIO m, MonadMask m)=>RFXComWriter (Consumer ByteString (SafeT m)) ()
-serialMessageSender = do
-  env <- ask
-  lift $ PBS.toHandle (serialH env)
 
+--
+-- Thread handling
+--
 
--- |Run the pipe stream for writing messages to the RFXCom device.
-processSerialPortWriter :: (Monad m, MonadIO m, MonadMask m) => RFXComWriter m () -- ^The result of the pipe execution session
-processSerialPortWriter = do
-  env <- ask
-  runEffect . runSafeP $ do
-    runRFXComWriter (serialMessageProducer) env 1
-    >->
-    PBS.toHandle (serialH env)
+-- |Stops the RFXCom Writer by sending the stop message
+stopWriterThread::MVar Message -- ^The destination for the message
+                -> IO ()
+stopWriterThread mvar = do
+  s<-newEmptyMVar
+  putMVar mvar $ Stop s
+  takeMVar s
+  
+-- |The RFXCom Writer bootstrap thread that initializes and runs the RFXCOM Writer.
+writerThread::Environment
+            ->IO ()
+writerThread env = do
+  Log.infoH (loggerH env) "RFXCom.Control.RFXComWriter.writeThread: Writer thread is up and running"
+  runRFXComWriter processSerialPortWriter env 1
+  where
+    
+    processSerialPortWriter = do
+      env <- ask
+      runEffect . runSafeP $ do
+        runRFXComWriter (serialMessageProducer) env 1
+        >->
+        PBS.toHandle (serialH env)
+    
+

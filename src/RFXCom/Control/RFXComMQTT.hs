@@ -89,6 +89,32 @@ data Environment = Environment {
   mqtt     :: MQTT.Config
   ,loggerH :: Log.Handle }
 
+
+-- |Publishes a message to a specific topic
+_publish::MQTT.Config -- ^The MQTT handle
+        ->String      -- ^The topic to publish the message on
+        ->ByteString  -- ^The message to post
+        ->IO ()
+_publish config topic raw = do
+    MQTT.publish config MQTT.NoConfirm False (MQTT.toTopic (MQTT.MqttText (pack topic))) raw
+
+
+-- |Subscribes to a specific topic
+_subscribe::MQTT.Config -- ^The MQTT handle
+          ->String      -- ^The topic to subscribe to
+          ->IO ()
+_subscribe config topic = do
+  _ <- MQTT.subscribe config [((MQTT.toTopic (MQTT.MqttText (pack topic))), MQTT.Handshake)]
+  return ()
+
+
+-- |Wait for a publish to happen to any of the subscribed topics
+_waitForPublish::MQTT.Config                     -- ^The MQTT handle
+               ->STM (MQTT.Message MQTT.PUBLISH) -- ^The received message
+_waitForPublish config = do
+  readTChan $ MQTT.cPublished $ config
+
+
 -- |Performs an IO action with the RFXCom writer process. Note that for each withHandle
 -- a new RFXCom writer communication thread will be started.
 withHandle::Config          -- ^The configuration of the master threads
@@ -139,44 +165,22 @@ subscriberThread env = do
   Log.infoH (loggerH env) "RFXCom.Control.RFXComSubscriber.subscriberThread: Subscriber thread is up and running"
   runRFXComSubscriber processMQTTSubscription env
 
+  where
+    
+    -- |The MQTT Subscriber that runs in the RFXComSubscriber monad.
+    processMQTTSubscription = do
+      env <- ask
+      Log.info "MQTT Started"
 
--- |Subscriberhandler thread
--- handleMsg::MQTT.Message MQTT.PUBLISH
---         ->IO ()
---handleMsg msg = do
---  putStr "Payload:"
---  print $ MQTT.payload $ MQTT.body msg
---  return ()
+      --
+      -- The subscription thread, waits for all incoming messages on the rfxcom tree on the MQTT broker
+      --
+      -- _ <- liftIO . forkIO $ do
+      --  MQTT.publish (mqtt env) MQTT.NoConfirm False ("rfxcom"::MQTT.Topic) "Jabadabbadata"
+      --  MQTT.subscribe (mqtt env) [("rfxcom/#"::MQTT.Topic, MQTT.Handshake)]
+      --  forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
 
-_publish::MQTT.Config->String->ByteString->IO ()
-_publish config topic raw = do
-    MQTT.publish config MQTT.NoConfirm False (MQTT.toTopic (MQTT.MqttText (pack topic))) raw
+      terminated <- liftIO $ MQTT.run $ mqtt env
+      Log.info $ "MQTT terminated " ++ show terminated
+      return ()
 
-_subscribe::MQTT.Config->String->IO ()
-_subscribe config topic = do
-  _ <- MQTT.subscribe config [((MQTT.toTopic (MQTT.MqttText (pack topic))), MQTT.Handshake)]
-  return ()
-
-_waitForPublish::MQTT.Config->STM (MQTT.Message MQTT.PUBLISH)
-_waitForPublish config = do
-  readTChan $ MQTT.cPublished $ config
-
--- |The MQTT Subscriber that runs in the RFXComSubscriber monad.
-processMQTTSubscription::(Monad m, MonadIO m)=>RFXComSubscriber m ()
-processMQTTSubscription = do
-  env <- ask
-  Log.info "MQTT Started"
-
-
-  --
-  -- The subscription thread, waits for all incoming messages on the rfxcom tree on the MQTT broker
-  --
-  -- _ <- liftIO . forkIO $ do
-  --  MQTT.publish (mqtt env) MQTT.NoConfirm False ("rfxcom"::MQTT.Topic) "Jabadabbadata"
-  --  MQTT.subscribe (mqtt env) [("rfxcom/#"::MQTT.Topic, MQTT.Handshake)]
-  --  forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
-
-
-  terminated <- liftIO $ MQTT.run $ mqtt env
-  Log.info $ "MQTT terminated " ++ show terminated
-  return ()

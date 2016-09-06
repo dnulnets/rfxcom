@@ -50,9 +50,9 @@ import           RFXCom.Message.Decoder      (msgParser)
 import           RFXCom.System.Concurrent    (forkChild, waitForChildren)
 import           RFXCom.System.Exception     (ResourceException (..))
 import qualified RFXCom.System.Log           as Log (Handle (..), LoggerT (..),
-                                                     MonadLogger (..),
-                                                     runLoggerT, debugH, errorH,
-                                                     infoH, warningH)
+                                                     MonadLogger (..), debugH,
+                                                     errorH, infoH, runLoggerT,
+                                                     warningH)
 
 -- |The configuration of the RFXCom Serial device reader processes
 data Config = Config
@@ -116,15 +116,6 @@ runRFXComReader::(Monad m) => RFXComReader m a -- ^The RFXCom Reader monad
 runRFXComReader (RFXComReader m) env = Log.runLoggerT (runReaderT m env) (loggerH env)
 
 
--- |The reader thread that reads all messages from the RFXCom device and sends them away to
--- the RFXCom Master handler by using the 'maybeSendMessage' function.
-readerThread::Environment
-            ->IO ()
-readerThread env = do
-  Log.infoH (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
-  runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
-
--- |Sends an RFXCom device message to the RFXCom Master for further handling
 maybeSendMessage::(Monad m, MonadIO m, MonadMask m)=>RFXComM.Handle -- ^The RFXCom Master handle
                 ->MaybeMessage                                      -- ^The RFXCom device message
                 ->m ()
@@ -146,12 +137,22 @@ serialMessageReader handler = do
     >->
     P.mapM_ (lift . handler)
 
--- |Run the pipe from RFXCom to us
-processSerialPort ::
-     (Monad m, MonadIO m, MonadMask m)
-  => MessageHandler m -- ^The RFXCom device message handler function
-  -> RFXComReader m ()
+-- |The serial port process definition
+processSerialPort:: (Monad m, MonadIO m, MonadMask m)
+  =>MessageHandler m -- ^The message handler for all incoming messages
+  ->RFXComReader m ()
 processSerialPort handler = do
   env <- ask
   lift $ runEffect . runSafeP $ do
     runRFXComReader (serialMessageReader handler) env
+
+-- |The reader thread that reads all messages from the RFXCom device and sends them away to
+-- the RFXCom Master handler by using the 'maybeSendMessage' function.
+readerThread::Environment
+            ->IO ()
+readerThread env = do
+  Log.infoH (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
+  runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
+  where
+
+
