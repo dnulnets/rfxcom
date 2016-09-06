@@ -102,7 +102,7 @@ withHandle config loggerH io = do
               { MQTT.cUsername = Just $ pack $ username config
               , MQTT.cPassword = Just $ pack $ password config
               , MQTT.cHost = host config
-              }
+              , MQTT.cClean = True}
   let env = Environment conf loggerH
   tid <- forkChild $ subscriberThread env
   x <- io $ Handle (_publish conf) (_subscribe conf) (_waitForPublish conf)
@@ -141,12 +141,12 @@ subscriberThread env = do
 
 
 -- |Subscriberhandler thread
-handleMsg::MQTT.Message MQTT.PUBLISH
-         ->IO ()
-handleMsg msg = do
-  putStr "Payload:"
-  print $ MQTT.payload $ MQTT.body msg
-  return ()
+-- handleMsg::MQTT.Message MQTT.PUBLISH
+--         ->IO ()
+--handleMsg msg = do
+--  putStr "Payload:"
+--  print $ MQTT.payload $ MQTT.body msg
+--  return ()
 
 _publish::MQTT.Config->String->ByteString->IO ()
 _publish config topic raw = do
@@ -171,10 +171,10 @@ processMQTTSubscription = do
   --
   -- The subscription thread, waits for all incoming messages on the rfxcom tree on the MQTT broker
   --
-  _ <- liftIO . forkIO $ do
-    MQTT.publish (mqtt env) MQTT.NoConfirm False ("rfxcom"::MQTT.Topic) "Jabadabbadata"
-    MQTT.subscribe (mqtt env) [("rfxcom/#"::MQTT.Topic, MQTT.Handshake)]
-    forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
+  -- _ <- liftIO . forkIO $ do
+  --  MQTT.publish (mqtt env) MQTT.NoConfirm False ("rfxcom"::MQTT.Topic) "Jabadabbadata"
+  --  MQTT.subscribe (mqtt env) [("rfxcom/#"::MQTT.Topic, MQTT.Handshake)]
+  --  forever $ atomically (readTChan $ MQTT.cPublished $ mqtt env) >>= handleMsg
 
 
   terminated <- liftIO $ MQTT.run $ mqtt env

@@ -40,7 +40,7 @@ import qualified RFXCom.Control.RFXComWriter      as RFXComW (Handle (..),
                                                               Message (..))
 
 import qualified RFXCom.Control.RFXComPublisher      as RFXComP (Handle (..),
-                                                              Message (..))
+                                                                 Message (..))
 
 import qualified          RFXCom.Message.Base              as MB
 import qualified RFXCom.Message.InterfaceControl  as IC (Body (..),
@@ -308,9 +308,10 @@ executeStateMachine WaitForStartFromTheDevice (Timeout tid) = do
 --
 -- Just print the message for now. But this is the main handler
 --
-executeStateMachine WaitForMessage msg = do
+executeStateMachine WaitForMessage (Message msg) = do
   env <- ask
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: WaitForMessages got Message"
+  liftIO $ (RFXComP.send (publisherH env)) (RFXComP.Message msg )
   Log.info $ "RFXCom.Control.RFXComMaster.executeStateMachine: " ++ show msg
   return ()
 
