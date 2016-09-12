@@ -150,6 +150,7 @@ publisherThread env = do
   runRFXComPublisher mqttPublisherProcess env  
   where
 
+    -- |The internal recursive publisher process
     mqttPublisherProcess = do
       env <- ask
       cmd <- liftIO . takeMVar $ (mvar env)

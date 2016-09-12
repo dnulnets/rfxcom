@@ -1,5 +1,6 @@
 {-# OPTIONS_HADDOCK ignore-exports #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- |This is the RFXCom Message base file that contains the RFXCom message data structures.
 --
@@ -19,7 +20,10 @@ module RFXCom.Message.BaseMessage (
 import           Data.Binary     (Word8)
 import           Data.Binary.Get (Get, getByteString)
 import           Data.Binary.Put (Put)
+
 import           Data.ByteString (unpack)
+
+import           Data.Aeson
 
 import           Control.Monad   (replicateM)
 
@@ -75,3 +79,8 @@ instance RFXComMessage Body where
 
   -- |We cannot send raw data bodies
   putMessage = undefined
+
+-- |JSON handling of the Body Message
+instance FromJSON Body where
+  parseJSON (Object v) = undefined
+  parseJSON _ = undefined

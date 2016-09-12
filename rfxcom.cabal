@@ -34,7 +34,8 @@ library
                        transformers,
                        exceptions,
                        mqtt-hs,
-                       stm
+                       stm,
+                       aeson
 
   exposed-modules:     RFXCom.Message.Base,
                        RFXCom.Message.BaseMessage,
@@ -96,7 +97,8 @@ executable rfxcom
                        transformers,
                        exceptions,
                        mqtt-hs,
-                       stm
+                       stm,
+                       aeson
 
                        
                        

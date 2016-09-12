@@ -153,6 +153,6 @@ readerThread::Environment
 readerThread env = do
   Log.infoH (loggerH env) "RFXCom.Control.RFXComReader.readerThread: Reader thread is up and running"
   runRFXComReader (processSerialPort (maybeSendMessage (masterH env))) env
-  where
+
 
 
