@@ -54,6 +54,13 @@ data Header = Header
   deriving (Show)
 
 
+-- |JSON handling of the Header
+instance ToJSON Header where
+  toJSON body = object [ "size" .= (_size body)
+                       , "type" .= (_type body)
+                       , "subtype" .= (_subtype body)
+                       , "sequenceNumber" .= (_sequenceNumber body)]
+
 --
 -- The base message (raw data message) functionality
 --
@@ -82,5 +89,9 @@ instance RFXComMessage Body where
 
 -- |JSON handling of the Body Message
 instance FromJSON Body where
-  parseJSON (Object v) = undefined
+  parseJSON (Object v) = Body <$> v .: "data"
   parseJSON _ = undefined
+
+-- |JSON handling of the Body Message
+instance ToJSON Body where
+  toJSON body = object ["data" .= (_data body)]
