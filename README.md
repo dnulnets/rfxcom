@@ -2,6 +2,9 @@
 
 This is a haskell based RFXCom to MQTT bridge. It converts to and from the RFXCom Messages to JSON structures and publishes or subscribes on them from the MQTT broker.
 
+**Work still in progress!**
+
+
 ### What is this repository for? ###
 
 * This contains the source code for the RFXCom to MQTT Bridge and also known issues and plans for current and future releases of the application.
