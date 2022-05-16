@@ -66,7 +66,9 @@ sequenceDiagram
     John->>Bob: How about you?
     Bob-->>John: Jolly good!
 ```
+
 # Flödesdiagram
+
 
 ```mermaid
 graph TD;
@@ -75,6 +77,7 @@ graph TD;
     B-->D;
     C-->D;
 ```
+
 
 # Statediagram
 ```mermaid
@@ -88,3 +91,15 @@ stateDiagram-v2
     Crash --> [*]
 ```
 
+
+```mermaid
+erDiagram
+          CUSTOMER }|..|{ DELIVERY-ADDRESS : has
+          CUSTOMER ||--o{ ORDER : places
+          CUSTOMER ||--o{ INVOICE : "liable for"
+          DELIVERY-ADDRESS ||--o{ ORDER : receives
+          INVOICE ||--|{ ORDER : covers
+          ORDER ||--|{ ORDER-ITEM : includes
+          PRODUCT-CATEGORY ||--|{ PRODUCT : contains
+          PRODUCT ||--o{ ORDER-ITEM : "ordered in"
+  ```
