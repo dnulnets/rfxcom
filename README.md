@@ -96,7 +96,7 @@ stateDiagram-v2
 erDiagram
           CUSTOMER }|..|{ DELIVERY-ADDRESS : has
           CUSTOMER ||--o{ ORDER : places
-          CUSTOMER ||--o{ INVOICE : "liable for"
+          CUSTOMER ||-->{ INVOICE : "liable for"
           DELIVERY-ADDRESS ||--o{ ORDER : receives
           INVOICE ||--|{ ORDER : covers
           ORDER ||--|{ ORDER-ITEM : includes
